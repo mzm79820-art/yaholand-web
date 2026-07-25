@@ -1,3 +1,4 @@
+const http = require("http");
 const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -10,12 +11,13 @@ const { buyBait, fish } = require("./game/fish");
 const { adoptPet, walkPet, trainPet, buyPetFood, feedPet } = require("./game/pet");
 const { chooseJob, buyJobChange, trainSlime } = require("./game/job");
 const { attackDungeon, equipItem, unequipItem, sellItem, enrichItems } = require("./game/dungeon");
+const { attachChat } = require("./chat");
 const C = require("./game/constants");
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Railway 등 프록시 뒤에서 HTTPS 판별
 app.set("trust proxy", 1);
 
 app.use((req, res, next) => {
@@ -53,7 +55,7 @@ function respondState(req, res, extra = {}) {
   state.dungeon.equips = enrichItems(player.data.equipSlots).map((x, i) =>
     player.data.equipSlots[i] ? x : { index: i, empty: true }
   );
-  savePlayer(req.user.id, player.point, player.data); // persist daily resets
+  savePlayer(req.user.id, player.point, player.data);
   res.json({ ok: true, state, ...extra });
 }
 
@@ -120,7 +122,9 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
-app.listen(PORT, () => {
+attachChat(server);
+
+server.listen(PORT, () => {
   console.log(`야호랜드 MVP http://localhost:${PORT}`);
   console.log(`시작 포인트 ${C.START_POINT}P · RPS/주사위 일 ${C.DAILY_RPS_LIMIT}/${C.DAILY_DICE_LIMIT}회`);
 });
