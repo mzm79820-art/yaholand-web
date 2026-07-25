@@ -2,6 +2,8 @@ const { WebSocketServer } = require("ws");
 const { getUserByToken } = require("./auth");
 const { sanitizeChat } = require("./chatFilter");
 const { handleGmCommand } = require("./purchase");
+const { getPlayer, savePlayer } = require("./db");
+const { trackChatQuest } = require("./game/quests");
 
 function parseCookie(header) {
   const out = {};
@@ -108,6 +110,11 @@ function attachChat(server) {
         text: cleaned.text,
         at: Date.now()
       };
+      const player = getPlayer(user.id);
+      if (player) {
+        trackChatQuest(player.data, user.id);
+        savePlayer(user.id, player.point, player.data);
+      }
       pushRecent(msg);
       broadcast(msg);
     });

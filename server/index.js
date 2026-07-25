@@ -14,6 +14,7 @@ const { attackDungeon, equipItem, unequipItem, sellItem, enrichItems, enrichEqui
 const { useJobSkill } = require("./game/jobSkills");
 const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
 const { mine } = require("./game/mine");
+const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
 const { attachChat } = require("./chat");
 const { createPurchaseRequest } = require("./purchase");
 const C = require("./game/constants");
@@ -44,11 +45,14 @@ function setSessionCookie(res, token) {
   });
 }
 
-function withPlayer(userId, fn) {
+function withPlayer(userId, fn, actionName = null) {
   const player = getPlayer(userId);
   if (!player) return { ok: false, error: "플레이어 데이터가 없습니다." };
   const result = fn(player.point, player.data);
-  if (result.ok) savePlayer(userId, result.point, result.data);
+  if (result.ok) {
+    if (actionName) trackQuestAction(result.data, actionName, userId);
+    savePlayer(userId, result.point, result.data);
+  }
   return result;
 }
 
@@ -115,13 +119,15 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "sword-start": (p, d) => startSword(p, d),
     "sword-enhance": (p, d) => enhanceSword(p, d),
     "sword-continue": (p, d) => continueSword(p, d),
-    "sword-claim": (p, d) => claimSword(p, d)
+    "sword-claim": (p, d) => claimSword(p, d),
+    "quest-claim": (p, d) => claimQuest(p, d, body.questId, req.user.id),
+    "quest-bonus": (p, d) => claimQuestBonus(p, d, req.user.id)
   };
 
   const fn = handlers[name];
   if (!fn) return res.status(404).json({ ok: false, error: "없는 행동입니다." });
 
-  const result = withPlayer(req.user.id, fn);
+  const result = withPlayer(req.user.id, fn, name);
   if (!result.ok) {
     return res.status(400).json({ ok: false, error: result.error, code: result.code || null });
   }

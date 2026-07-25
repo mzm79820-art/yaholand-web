@@ -75,7 +75,11 @@ function defaultPlayerData() {
     alchemyWins: 0,
     stealWins: 0,
     arrestWins: 0,
-    swordRun: null
+    swordRun: null,
+    dailyQuestDate: "",
+    dailyQuests: [],
+    dailyQuestBonusClaimed: false,
+    questChatCount: 0
   };
 }
 

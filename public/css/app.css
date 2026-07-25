@@ -90,7 +90,40 @@ body {
   font-size: 0.85rem;
   gap: 2px;
 }
+.hud-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .point { color: #ffd166; font-weight: 700; }
+button.point-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: #ffd166;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 209, 102, 0.35);
+  text-underline-offset: 2px;
+}
+button.point-btn:hover { color: #ffe8a3; }
+.logout-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.22);
+  color: rgba(244,255,248,0.85);
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+.logout-btn:hover { background: rgba(193, 18, 31, 0.55); color: #fff; }
 
 .app {
   flex: 1;
@@ -356,6 +389,57 @@ button.btn.chip.ghost {
 .stat-item span { color: var(--muted); }
 .stat-item b { color: var(--ink); }
 
+.status-drop > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.status-drop > summary::-webkit-details-marker { display: none; }
+.status-drop > summary::after {
+  content: "▾";
+  color: var(--muted);
+  transition: transform .15s ease;
+}
+.status-drop[open] > summary::after { transform: rotate(180deg); }
+.status-drop > summary .meta {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.quest-list { display: grid; gap: 10px; }
+.quest-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.quest-item.done { border-color: #2a9d8f; background: #f2fbf8; }
+.quest-item.claimed { opacity: 0.72; }
+.quest-main { min-width: 0; }
+.quest-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e9ecef;
+  overflow: hidden;
+  margin: 8px 0 6px;
+}
+.quest-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2a9d8f, #95d5b2);
+}
+.quest-action .btn { padding: 8px 10px; font-size: 0.8rem; white-space: nowrap; }
+
 .avatar-stage {
   min-height: 150px;
   border-radius: 18px;
@@ -413,9 +497,61 @@ button.btn.chip.ghost {
   filter: drop-shadow(0 0 12px #fff3bf);
   animation: swordGlow 1.2s ease-in-out infinite alternate;
 }
+.sword-stage.striking .sword-icon {
+  animation: swordStrike 0.35s ease-in-out;
+}
 @keyframes swordGlow {
   from { transform: scale(1) rotate(-3deg); }
   to { transform: scale(1.08) rotate(3deg); }
+}
+@keyframes swordStrike {
+  0% { transform: rotate(0deg) scale(1); }
+  40% { transform: rotate(-28deg) scale(1.15); }
+  100% { transform: rotate(12deg) scale(1); }
+}
+
+.dungeon-stage {
+  position: relative;
+  padding: 28px 14px 20px;
+  border-radius: 18px;
+  text-align: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255,209,102,0.25), transparent 45%),
+    linear-gradient(160deg, #1b4332, #081c15 70%);
+  color: #f4fff8;
+}
+.dungeon-stage h2 { margin: 8px 0 4px; color: #f4fff8; }
+.dungeon-tower {
+  font-size: 4.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,.35));
+  transition: transform .2s ease;
+}
+.dungeon-stage.fighting .dungeon-tower {
+  animation: dungeonShake 0.15s linear infinite;
+}
+.dungeon-slash {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  transform: translate(-50%, -50%) scale(0.4) rotate(-20deg);
+  font-size: 3rem;
+  opacity: 0;
+  pointer-events: none;
+}
+.dungeon-slash.show {
+  animation: dungeonSlash 0.7s ease-out;
+}
+@keyframes dungeonShake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-6px) rotate(-3deg); }
+  75% { transform: translateX(6px) rotate(3deg); }
+}
+@keyframes dungeonSlash {
+  0% { opacity: 0; transform: translate(-70%, -20%) scale(0.3) rotate(-50deg); }
+  35% { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(-10deg); }
+  100% { opacity: 0; transform: translate(-20%, -80%) scale(1.4) rotate(20deg); }
 }
 
 .mine-stage {

@@ -1,6 +1,7 @@
 const { getDateKey, clamp } = require("../date");
 const C = require("./constants");
 const { getSwordView } = require("./sword");
+const { getQuestView, ensureDailyQuests } = require("./quests");
 
 function resetDaily(data, fieldDate, fieldCount, dateKey) {
   if (data[fieldDate] !== dateKey) {
@@ -59,12 +60,14 @@ function publicState(user, point, data) {
   resetDaily(data, "lastWalkDate", "walkCount", dateKey);
   resetDaily(data, "lastTrainDate", "trainCount", dateKey);
   resetDaily(data, "lastDungeonDate", "dungeonCount", dateKey);
+  ensureDailyQuests(data, user.id);
 
   const job = jobByKey(data.job);
   return {
     nickname: user.nickname,
     username: user.username,
     point,
+    quests: getQuestView(data, user.id),
     limits: {
       rps: { used: data.rpsCount, max: C.DAILY_RPS_LIMIT },
       dice: { used: data.diceCount, max: C.DAILY_DICE_LIMIT },
