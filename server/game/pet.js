@@ -26,11 +26,13 @@ function adoptPet(point, data, name) {
 
 function walkPet(point, data) {
   if (!data.pet) return { ok: false, error: "펫이 없습니다. 먼저 입양하세요." };
+  if (point < C.WALK_COST) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   const dateKey = getDateKey();
   resetDaily(data, "lastWalkDate", "walkCount", dateKey);
-  if (data.walkCount >= C.DAILY_WALK_LIMIT) {
+  if (C.DAILY_WALK_LIMIT > 0 && data.walkCount >= C.DAILY_WALK_LIMIT) {
     return { ok: false, error: `오늘 산책 ${C.DAILY_WALK_LIMIT}회를 모두 사용했습니다.` };
   }
+  point -= C.WALK_COST;
   data.walkCount += 1;
   const leveled = addExp(data.petLevel, data.petExp, C.WALK_EXP, C.PET_MAX_LEVEL, C.LEVEL_EXP);
   data.petLevel = leveled.level;
@@ -41,11 +43,11 @@ function walkPet(point, data) {
     point,
     data,
     log: [
-      `${data.pet} ${data.petName}과(와) 산책!`,
+      `${data.pet} ${data.petName}과(와) 산책! (-${C.WALK_COST}P)`,
       `EXP +${C.WALK_EXP}`,
       ...leveled.lines,
       `${petTierName(data.petTier)}Lv.${data.petLevel}`,
-      `오늘 산책 ${data.walkCount}/${C.DAILY_WALK_LIMIT}`
+      `오늘 산책 ${data.walkCount}/${C.DAILY_WALK_LIMIT || "∞"} · 잔액 ${point}P`
     ]
   };
 }

@@ -151,7 +151,7 @@ const GAME_TIPS = [
   "포인트가 부족하면 우상단 포인트를 눌러 구매 페이지로 이동할 수 있습니다.",
   "주사위는 무제한입니다. 수수료가 있으니 소액으로 감을 익히세요.",
   "낚시 미끼는 상점에서 미리 사두면 연속으로 낚기 편합니다.",
-  "채굴은 쿨타임 3초입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
+  "채굴은 쿨타임 없이 무제한입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
   "검 강화는 성공해도 바로 멈추지 말고, 보상 수령 타이밍을 정하세요.",
   "강화 실패 시 진행 중인 검이 파괴됩니다. 욕심을 조절하세요.",
   "강화 보상 무기는 가방에서 왼쪽·오른쪽 무기에 장착할 수 있습니다.",
@@ -160,7 +160,7 @@ const GAME_TIPS = [
   "장비는 머리·상의·하의·신발·양손·장갑·귀걸이·반지 10부위입니다.",
   "가방 탭에서 장착과 판매를 한곳에서 관리할 수 있습니다.",
   "무기와 반지는 왼손/오른손을 직접 고를 수 있습니다.",
-  "펫은 산책·훈련·간식으로 성장합니다. 일일 한도를 활용하세요.",
+  "펫은 산책(10P)·훈련·간식으로 성장합니다. 산책은 무제한입니다.",
   "펫을 입양하면 펫 탭에서 상태와 등급을 확인할 수 있습니다.",
   "직업은 한 번 고르면 변경권이 필요합니다. 신중히 선택하세요.",
   "슬라임 훈련은 직업 경험치와 스탯을 올리는 기본 루트입니다.",
@@ -204,7 +204,7 @@ const GAME_TIPS = [
   "수배 현상금이 쌓이면 경찰의 표적이 됩니다.",
   "펫 이름도 입양 시 정할 수 있습니다.",
   "훈련은 비용이 들지만 성장이 빠릅니다.",
-  "산책은 가볍게 경험을 쌓는 방법입니다.",
+  "산책은 10P로 무제한 가능합니다. 가볍게 경험을 쌓으세요.",
   "던전 일일 횟수를 남겨두면 저녁에 몰아서 공략할 수 있습니다.",
   "장비 드롭률은 던전 등급에 따라 달라집니다.",
   "고등급 던전은 필요 전투력을 꼭 확인하세요.",
@@ -606,7 +606,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     body = `
       <div class="stage-art mine-stage" id="mineStage">
         <div class="mine-visual">⛏️</div>
-        <p class="muted center">쿨타임 ${(g.limits.mine?.cooldownMs || 3000) / 1000}초 · 무제한</p>
+        <p class="muted center">쿨타임 없음 · 무제한</p>
       </div>
       <div class="result-panel" id="mineLog">곡괭이를 휘둘러 포인트를 캐세요</div>
       <button class="btn accent big" id="mineBtn">⛏️ 채굴하기</button>
@@ -970,7 +970,7 @@ function renderPlay() {
       <div class="game-card-icon">⛏️</div>
       <div>
         <strong>채굴</strong>
-        <span>노가다 · 쿨타임 ${(g.limits.mine?.cooldownMs || 3000) / 1000}초 · 무제한</span>
+        <span>노가다 · 쿨타임 없음 · 무제한</span>
       </div>
     </button>
     <button class="game-card" data-open="sword">
@@ -1032,11 +1032,11 @@ function renderPet() {
         <div class="stat-item"><span>레벨</span><b>${p.level}</b></div>
         <div class="stat-item"><span>경험치</span><b>${p.exp} / ${p.need || "-"}</b></div>
         <div class="stat-item"><span>간식</span><b>${p.food}개</b></div>
-        <div class="stat-item"><span>산책</span><b>${g.limits.walk.used} / ${g.limits.walk.max}</b></div>
+        <div class="stat-item"><span>산책</span><b>${g.limits.walk.used} / ${g.limits.walk.max || "∞"}</b></div>
         <div class="stat-item"><span>훈련</span><b>${g.limits.train.used} / ${g.limits.train.max}</b></div>
       </div>
       <div class="row" style="margin-top:14px">
-        <button class="btn" id="walkBtn">산책</button>
+        <button class="btn" id="walkBtn">산책 (${g.catalogs.walkCost || 10}P)</button>
         <button class="btn secondary" id="trainBtn">훈련 (${g.catalogs.trainCost}P)</button>
         <button class="btn accent" id="feedBtn">간식 주기</button>
       </div>

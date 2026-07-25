@@ -54,9 +54,10 @@ const FISH_LIST = [
 const PET_MAX_LEVEL = 100;
 const PET_MAX_TIER = 4;
 const PET_EVOLUTION_TIERS = ["", "R ", "SR ", "SSR ", "UR "];
-const DAILY_WALK_LIMIT = 5;
+const DAILY_WALK_LIMIT = 0; // 0 = 무제한
 const DAILY_TRAIN_LIMIT = 15;
 const TRAIN_COST = 50;
+const WALK_COST = 10;
 const WALK_EXP = 30;
 const TRAIN_EXP = 80;
 const PET_ADOPT_COST = 0;
@@ -154,7 +155,7 @@ const DUNGEON_LIST = [
 const DUNGEON_ITEM_DROP_RATE = { F: 0.4, D: 0.32, C: 0.26 };
 
 const DAILY_MINE_LIMIT = 0; // 0 = 무제한
-const MINE_COOLDOWN_MS = 3000;
+const MINE_COOLDOWN_MS = 0;
 const MINE_JACKPOT_RATE = 0.0025;
 const MINE_BOOST_OVERTIME = { start: 17, end: 22, mult: 1.5, name: "야근", emoji: "🌆" };
 const MINE_BOOST_SPECIAL = { start: 22, end: 3, mult: 2.5, name: "특근", emoji: "🌃" };
@@ -223,6 +224,7 @@ module.exports = {
   DAILY_WALK_LIMIT,
   DAILY_TRAIN_LIMIT,
   TRAIN_COST,
+  WALK_COST,
   WALK_EXP,
   TRAIN_EXP,
   PET_ADOPT_COST,

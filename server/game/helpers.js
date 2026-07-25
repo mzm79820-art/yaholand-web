@@ -152,6 +152,7 @@ function publicState(user, point, data) {
       diceMaxBet: C.DICE_MAX_BET,
       petFoodPrice: C.PET_FOOD_PRICE,
       trainCost: C.TRAIN_COST,
+      walkCost: C.WALK_COST,
       slimeCost: C.SLIME_COST,
       jobChangePrice: C.JOB_CHANGE_PRICE,
       bank: C.BANK
