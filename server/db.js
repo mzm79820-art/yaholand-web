@@ -8,7 +8,15 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 const DB_FILE = path.join(dataDir, "store.json");
 
 function emptyStore() {
-  return { nextUserId: 1, nextPurchaseId: 1, users: [], sessions: {}, players: {}, purchases: [] };
+  return {
+    nextUserId: 1,
+    nextPurchaseId: 1,
+    users: [],
+    sessions: {},
+    players: {},
+    purchases: [],
+    lottery: null
+  };
 }
 
 function load() {
@@ -185,6 +193,23 @@ function setPurchaseStatus(id, status) {
   return req;
 }
 
+function getLotteryState() {
+  return store.lottery;
+}
+
+function setLotteryState(lottery) {
+  store.lottery = lottery;
+  save();
+  return store.lottery;
+}
+
+function mutateLottery(mutator) {
+  const next = mutator(store.lottery);
+  store.lottery = next;
+  save();
+  return store.lottery;
+}
+
 module.exports = {
   defaultPlayerData,
   normalizePlayerData,
@@ -201,5 +226,8 @@ module.exports = {
   getSession,
   addPurchaseRequest,
   listPurchaseRequests,
-  setPurchaseStatus
+  setPurchaseStatus,
+  getLotteryState,
+  setLotteryState,
+  mutateLottery
 };

@@ -156,6 +156,8 @@ function publicState(user, point, data) {
     },
     sword: getSwordView(data),
     diceTiers: getDiceUnlockView(data),
+    diceWave: require("./dice").getDiceWave(),
+    lottery: require("./lottery").getLotteryView(user.id),
     status: {
       wantedBounty: data.wantedBounty || 0,
       cursed: (data.curseUntil || 0) > Date.now(),
@@ -168,6 +170,13 @@ function publicState(user, point, data) {
       rpsMaxBet: C.RPS_MAX_BET,
       diceMaxBet: C.DICE_MAX_BET,
       diceTiers: C.DICE_TIERS,
+      lottery: {
+        feeRate: C.LOTTERY_FEE_RATE,
+        minBuy: C.LOTTERY_MIN_BUY,
+        maxBuy: C.LOTTERY_MAX_BUY,
+        drawHour: C.LOTTERY_DRAW_HOUR_KST,
+        prizes: C.LOTTERY_PRIZE_SHARES
+      },
       petFoodPrice: C.PET_FOOD_PRICE,
       trainCost: C.TRAIN_COST,
       walkCost: C.WALK_COST,

@@ -14,6 +14,7 @@ const { attackDungeon, unlockDungeon, equipItem, unequipItem, sellItem, enrichIt
 const { useJobSkill } = require("./game/jobSkills");
 const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
 const { mine } = require("./game/mine");
+const { buyLottery, runDueDraw } = require("./game/lottery");
 const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
 const { attachChat, broadcastActivity } = require("./chat");
 const { formatActivity } = require("./activityFeed");
@@ -124,7 +125,8 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "sword-continue": (p, d) => continueSword(p, d),
     "sword-claim": (p, d) => claimSword(p, d),
     "quest-claim": (p, d) => claimQuest(p, d, body.questId, req.user.id),
-    "quest-bonus": (p, d) => claimQuestBonus(p, d, req.user.id)
+    "quest-bonus": (p, d) => claimQuestBonus(p, d, req.user.id),
+    "lottery-buy": (p, d) => buyLottery(p, d, req.user, body.amount)
   };
 
   const fn = handlers[name];
@@ -176,7 +178,20 @@ app.get("*", (req, res) => {
 
 attachChat(server);
 
+function tickLotteryDraw() {
+  try {
+    const result = runDueDraw();
+    if (result.drew && result.announcements?.length) {
+      for (const text of result.announcements) broadcastActivity(text);
+    }
+  } catch (e) {
+    console.error("[lottery draw]", e.message || e);
+  }
+}
+
 server.listen(PORT, () => {
   console.log(`야호랜드 MVP http://localhost:${PORT}`);
   console.log(`시작 포인트 ${C.START_POINT}P · RPS/주사위 일 ${C.DAILY_RPS_LIMIT}/${C.DAILY_DICE_LIMIT}회`);
+  tickLotteryDraw();
+  setInterval(tickLotteryDraw, 30 * 1000);
 });

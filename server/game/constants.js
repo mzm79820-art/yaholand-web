@@ -20,12 +20,35 @@ const SLOT_PAYOUT_LOW = 0.25;
 const SLOT_PAYOUT_STRAIGHT = 1.0;
 const SLOT_NEAR_SUM = 13;
 const SLOT_LOW_SUM = 10;
+// 10분마다 전체 서버가 같은 운세 파동을 공유한다.
+// scale은 기준 배당에 곱해지며, 가중 평균은 장기적으로 하우스 우위(~90%)를 유지한다.
+const DICE_WAVE_MS = 10 * 60 * 1000;
+const DICE_WAVES = [
+  { key: "cold", name: "한파", emoji: "🥶", bias: "lose", hint: "배당이 약합니다. 손실 구간.", scale: 0.88, weight: 2 },
+  { key: "cool", name: "쌀쌀", emoji: "😮‍💨", bias: "lose", hint: "살짝 불리한 구간입니다.", scale: 0.94, weight: 3 },
+  { key: "normal", name: "평온", emoji: "🎲", bias: "neutral", hint: "보통 배당 구간입니다.", scale: 1.0, weight: 3 },
+  { key: "warm", name: "훈풍", emoji: "🌤️", bias: "win", hint: "배당이 살짝 유리합니다.", scale: 1.12, weight: 2 },
+  { key: "hot", name: "대박", emoji: "🔥", bias: "win", hint: "고배당 구간! 따기 좋은 때.", scale: 1.25, weight: 1 }
+];
 const DICE_TIERS = [
   { key: "beginner", name: "초급", emoji: "🎲", maxBet: 100, unlockCost: 0 },
   { key: "intermediate", name: "중급", emoji: "🎰", maxBet: 500, unlockCost: 300 },
   { key: "advanced", name: "고급", emoji: "💎", maxBet: 1000, unlockCost: 800 }
 ];
 const DICE_MAX_BET = 1000; // 고급 상한 (호환용)
+
+// 행운당첨(복권) — 매일 21:00 KST 추첨, 구매액의 10% 수수료
+const LOTTERY_FEE_RATE = 0.1;
+const LOTTERY_MIN_BUY = 100;
+const LOTTERY_MAX_BUY = 10000;
+const LOTTERY_DRAW_HOUR_KST = 21;
+const LOTTERY_PRIZE_SHARES = [
+  { rank: 1, name: "1등", share: 0.4, emoji: "🥇" },
+  { rank: 2, name: "2등", share: 0.25, emoji: "🥈" },
+  { rank: 3, name: "3등", share: 0.15, emoji: "🥉" },
+  { rank: 4, name: "4등", share: 0.12, emoji: "🎟" },
+  { rank: 5, name: "5등", share: 0.08, emoji: "✨" }
+];
 
 const DAILY_FISH_LIMIT = 0; // 0 = 무제한
 const FISH_BAITS = [
@@ -220,8 +243,15 @@ module.exports = {
   SLOT_PAYOUT_STRAIGHT,
   SLOT_NEAR_SUM,
   SLOT_LOW_SUM,
+  DICE_WAVE_MS,
+  DICE_WAVES,
   DICE_TIERS,
   DICE_MAX_BET,
+  LOTTERY_FEE_RATE,
+  LOTTERY_MIN_BUY,
+  LOTTERY_MAX_BUY,
+  LOTTERY_DRAW_HOUR_KST,
+  LOTTERY_PRIZE_SHARES,
   DAILY_FISH_LIMIT,
   FISH_BAITS,
   ROD_TIER_NAMES,

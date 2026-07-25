@@ -6,6 +6,7 @@ const state = {
   lastLog: "버튼을 눌러 플레이하세요.",
   betRps: 10,
   betDice: 10,
+  betLottery: 100,
   diceTier: "beginner",
   bait: "basic",
   overlay: null,
@@ -177,7 +178,8 @@ const sfx = {
 const GAME_TIPS = [
   "가위바위보는 하루 20회까지입니다. 큰 금액은 연승이 쌓일 때 올려보세요.",
   "포인트가 부족하면 우상단 포인트를 눌러 구매 페이지로 이동할 수 있습니다.",
-  "주사위는 무제한입니다. 수수료가 있으니 소액으로 감을 익히세요.",
+  "주사위 운세는 10분마다 바뀝니다. 대박 구간에 노려보세요.",
+  "행운당첨은 매일 저녁 9시에 추첨됩니다. 구매 수수료 10%는 상금풀에 들어가지 않습니다.",
   "낚시 미끼는 상점에서 미리 사두면 연속으로 낚기 편합니다.",
   "채굴은 쿨타임 없이 무제한입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
   "검 강화는 성공해도 바로 멈추지 말고, 보상 수령 타이밍을 정하세요.",
@@ -571,6 +573,7 @@ function betControls(inputId, max) {
 function syncBetState(inputId, value) {
   if (inputId === "betRps") state.betRps = value;
   if (inputId === "betDice") state.betDice = value;
+  if (inputId === "betLottery") state.betLottery = value;
 }
 
 function applyBet(inputId, nextValue) {
@@ -593,7 +596,7 @@ function bindBetControls(root = document) {
   root.querySelectorAll("[data-bet-set]").forEach((btn) => {
     btn.onclick = () => applyBet(btn.dataset.betInput, Number(btn.dataset.betSet));
   });
-  ["betRps", "betDice"].forEach((id) => {
+  ["betRps", "betDice", "betLottery"].forEach((id) => {
     const input = root.querySelector(`#${id}`);
     if (input) input.oninput = () => syncBetState(id, Number(input.value) || 1);
   });
@@ -618,6 +621,8 @@ async function act(name, body = {}) {
 }
 
 function closeOverlay() {
+  stopDiceWaveTimer();
+  stopLotteryTimer();
   state.overlay = null;
   overlayEl.classList.add("hidden");
   overlayEl.innerHTML = "";
@@ -675,9 +680,19 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       }
       return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name}<br/><span class="meta">${t.unlockCost}P 개방</span></button>`;
     }).join("");
+    const wave = g.diceWave || { emoji: "🎲", name: "평온", hint: "보통 배당", expectedRtp: 90, remainSec: 600, bias: "neutral", endsAt: Date.now() + 600000 };
+    const remainMin = Math.floor((wave.remainSec || 0) / 60);
+    const remainSec = (wave.remainSec || 0) % 60;
+    const remainText = `${remainMin}:${String(remainSec).padStart(2, "0")}`;
+    const biasClass = wave.bias === "win" ? "wave-win" : wave.bias === "lose" ? "wave-lose" : "wave-neutral";
     body = `
       <div class="stage-art"><img src="/img/dice-slot.png" alt="슬롯" /></div>
       <div class="tier-row">${tierBtns}</div>
+      <div class="dice-wave ${biasClass}" id="diceWave" data-ends-at="${wave.endsAt || ""}">
+        <div class="dice-wave-main">${wave.emoji} 운세 · ${wave.name}</div>
+        <div class="dice-wave-sub">${wave.hint || ""} · 예상환급 약 ${wave.expectedRtp}%</div>
+        <div class="dice-wave-timer">다음 변동까지 <span id="diceWaveRemain">${remainText}</span></div>
+      </div>
       <div class="dice-board" id="diceBoard">
         <span class="die" id="die0">🎲</span>
         <span class="die" id="die1">🎲</span>
@@ -689,7 +704,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       </label>
       ${betControls("betDice", active.maxBet)}
       <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</p>
-      <p class="muted center">장기 평균 환급률 약 90% · 반복할수록 평균 손실이 발생합니다.</p>
+      <p class="muted center">10분마다 운세가 바뀝니다. 장기 평균은 하우스 우위입니다.</p>
       <button class="btn accent big" id="diceBtn">🎰 ${active.name} 주사위 굴리기</button>
     `;
   } else if (kind === "fish") {
@@ -737,6 +752,55 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       </div>
       <p class="muted center">강화 실패 시 진행 중인 검이 파괴됩니다.</p>
     `;
+  } else if (kind === "lottery") {
+    const L = g.lottery || {};
+    const prizes = (L.prizes || []).map((p) =>
+      `<div class="item"><span>${p.emoji || ""} ${p.name}</span><span class="meta">${Math.round((p.share || 0) * 100)}% · 예상 ${p.estimated || 0}P</span></div>`
+    ).join("");
+    const myRows = (L.myTickets || []).length
+      ? (L.myTickets || []).map((t) =>
+          `<div class="item"><span>복권 #${t.id}</span><span class="meta">응모 ${t.stake}P (수수료 ${t.fee}P)</span></div>`
+        ).join("")
+      : `<p class="muted center">아직 구매한 복권이 없습니다.</p>`;
+    const lastRows = (L.lastResults || []).length
+      ? (L.lastResults || []).map((r) =>
+          `<div class="item"><span>${r.emoji} ${r.name} ${escapeHtml(r.nickname)}</span><span class="meta">+${r.prize}P</span></div>`
+        ).join("")
+      : `<p class="muted center">지난 추첨 결과가 없습니다.</p>`;
+    const remain = formatRemain(L.remainSec || 0);
+    const maxBuy = L.maxBuy || g.catalogs?.lottery?.maxBuy || 10000;
+    if (state.betLottery > maxBuy) state.betLottery = maxBuy;
+    body = `
+      <div class="lottery-hero">
+        <div class="lottery-emoji">🎟</div>
+        <h2>행운당첨</h2>
+        <p class="muted center">매일 저녁 9시(KST) 추첨 · 구매 수수료 10%</p>
+      </div>
+      <div class="dice-wave wave-neutral" id="lotteryTimer" data-ends-at="${L.drawAt || ""}">
+        <div class="dice-wave-main">상금풀 ${(L.pot || 0).toLocaleString()}P</div>
+        <div class="dice-wave-sub">응모 ${(L.ticketCount || 0).toLocaleString()}장 · 내 응모 ${(L.myTicketCount || 0)}장 (${(L.myStake || 0).toLocaleString()}P)</div>
+        <div class="dice-wave-timer">다음 추첨까지 <span id="lotteryRemain">${remain}</span></div>
+      </div>
+      <div class="panel stack">
+        <h3>등수별 배당</h3>
+        ${prizes || '<p class="muted">배당 정보 없음</p>'}
+      </div>
+      <label class="field">구매 금액
+        <input id="betLottery" type="number" min="${L.minBuy || 100}" max="${maxBuy}" value="${state.betLottery}" />
+      </label>
+      ${betControls("betLottery", maxBuy)}
+      <p class="muted center">결제액의 10%는 수수료, 90%가 상금풀에 들어갑니다.</p>
+      <button class="btn accent big" id="lotteryBuyBtn">🎟 복권 구매</button>
+      <div class="result-panel" id="lotteryLog">금액을 넣고 복권을 구매하세요.</div>
+      <div class="panel stack">
+        <h3>내 복권</h3>
+        ${myRows}
+      </div>
+      <div class="panel stack">
+        <h3>지난 추첨</h3>
+        ${lastRows}
+      </div>
+    `;
   } else if (kind === "dungeon") {
     const tower = meta?.tower || (g.dungeon.towers || [])[0] || {};
     if (!tower.unlocked) {
@@ -769,6 +833,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     fish: "낚시",
     mine: "채굴",
     sword: "검 강화",
+    lottery: "행운당첨",
     dungeon: "던전"
   };
 
@@ -825,6 +890,7 @@ function bindOverlay(kind, meta) {
 
   if (kind === "dice") {
     if (meta?.dice) applyDiceVisual(meta.dice, false);
+    startDiceWaveTimer();
     overlayEl.querySelectorAll("[data-dice-tier]").forEach((btn) => {
       btn.onclick = () => {
         state.diceTier = btn.dataset.diceTier;
@@ -917,6 +983,24 @@ function bindOverlay(kind, meta) {
         overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
       } catch {
         stage?.classList.remove("swing");
+      }
+    };
+  }
+
+  if (kind === "lottery") {
+    startLotteryTimer();
+    overlayEl.querySelector("#lotteryBuyBtn").onclick = async () => {
+      const amount = Number(overlayEl.querySelector("#betLottery")?.value || state.betLottery);
+      state.betLottery = amount;
+      overlayEl.querySelector("#lotteryLog").textContent = "복권 구매 중...";
+      try {
+        const data = await act("lottery-buy", { amount });
+        openOverlay("lottery", null, true);
+        const log = overlayEl.querySelector("#lotteryLog");
+        if (log) log.textContent = (data.log || []).join("\n");
+        showToast((data.log && data.log[0]) || "복권 구매 완료");
+      } catch {
+        /* act에서 안내 */
       }
     };
   }
@@ -1030,6 +1114,78 @@ function applyDiceVisual(dice, animate) {
   });
 }
 
+let diceWaveTimerId = null;
+
+function stopDiceWaveTimer() {
+  if (diceWaveTimerId) {
+    clearInterval(diceWaveTimerId);
+    diceWaveTimerId = null;
+  }
+}
+
+function formatRemain(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function startDiceWaveTimer() {
+  stopDiceWaveTimer();
+  const box = overlayEl.querySelector("#diceWave");
+  const remainEl = overlayEl.querySelector("#diceWaveRemain");
+  if (!box || !remainEl) return;
+  const endsAt = Number(box.dataset.endsAt) || 0;
+  const tick = async () => {
+    const left = Math.ceil((endsAt - Date.now()) / 1000);
+    remainEl.textContent = formatRemain(left);
+    if (left <= 0) {
+      stopDiceWaveTimer();
+      try {
+        const data = await api("/api/me");
+        if (data.state) state.game = data.state;
+      } catch {
+        /* ignore */
+      }
+      if (state.overlay === "dice") openOverlay("dice", null, true);
+    }
+  };
+  tick();
+  diceWaveTimerId = setInterval(tick, 1000);
+}
+
+let lotteryTimerId = null;
+
+function stopLotteryTimer() {
+  if (lotteryTimerId) {
+    clearInterval(lotteryTimerId);
+    lotteryTimerId = null;
+  }
+}
+
+function startLotteryTimer() {
+  stopLotteryTimer();
+  const box = overlayEl.querySelector("#lotteryTimer");
+  const remainEl = overlayEl.querySelector("#lotteryRemain");
+  if (!box || !remainEl) return;
+  const endsAt = Number(box.dataset.endsAt) || 0;
+  const tick = async () => {
+    const left = Math.ceil((endsAt - Date.now()) / 1000);
+    remainEl.textContent = formatRemain(left);
+    if (left <= 0) {
+      stopLotteryTimer();
+      try {
+        const data = await api("/api/me");
+        if (data.state) state.game = data.state;
+      } catch {
+        /* ignore */
+      }
+      if (state.overlay === "lottery") openOverlay("lottery", null, true);
+    }
+  };
+  tick();
+  lotteryTimerId = setInterval(tick, 1000);
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -1131,6 +1287,13 @@ function renderPlay() {
       <div>
         <strong>검 강화</strong>
         <span>${g.sword?.run ? `현재 +${g.sword.run.level}강` : `시작 ${g.sword?.startCost || 20}P`}</span>
+      </div>
+    </button>
+    <button class="game-card" data-open="lottery">
+      <div class="game-card-icon">🎟</div>
+      <div>
+        <strong>행운당첨</strong>
+        <span>상금풀 ${(g.lottery?.pot || 0).toLocaleString()}P · 매일 21시</span>
       </div>
     </button>
   `;

@@ -244,6 +244,51 @@ button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--accent);
   color: #fff;
 }
+.dice-wave {
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 4px 0 8px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.dice-wave-main {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.dice-wave-sub {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+.dice-wave-timer {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+.dice-wave.wave-win {
+  background: rgba(46, 160, 90, 0.22);
+  color: #b7f5c8;
+}
+.dice-wave.wave-lose {
+  background: rgba(180, 70, 70, 0.22);
+  color: #f5c2c2;
+}
+.dice-wave.wave-neutral {
+  background: rgba(255, 209, 102, 0.12);
+  color: #ffe6a8;
+}
+.lottery-hero {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.lottery-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.lottery-hero h2 {
+  margin: 6px 0 2px;
+  font-size: 1.2rem;
+}
 .choice-grid button {
   padding: 16px 8px;
   font-size: 1.05rem;

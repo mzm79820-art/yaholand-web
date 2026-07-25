@@ -120,6 +120,12 @@ function formatActivity(user, action, result, body = {}) {
         : `💰 ${n}님 포인트 구매를 요청했습니다`;
     }
 
+    case "lottery-buy": {
+      const paid = meta.ticket?.paid || body.amount;
+      const stake = meta.stake;
+      return `🎟 ${n}님 행운당첨 복권 구매 (${paid}P · 응모 ${stake}P)`;
+    }
+
     default:
       return null;
   }
