@@ -10,26 +10,24 @@ const RPS_MAX_BET = 100; // MVP: 과도한 올인 방지
 const DAILY_DICE_LIMIT = 0; // 0 = 무제한
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const DICE_FEE_RATE = 0.01;
-// 공정한 3D6 기준 장기 환급률 91.53% (1% 수수료 적용 시 최대 90.62%).
-// 베팅액이 작아 수수료가 0P로 내림 처리되어도 기대값은 항상 음수다.
-const SLOT_PAYOUT_TRIPLE6 = 15;
-const SLOT_PAYOUT_TRIPLE = 6;
-const SLOT_PAYOUT_PAIR = 1.25;
-const SLOT_PAYOUT_NEAR = 0.8;
-const SLOT_PAYOUT_LOW = 0.25;
-const SLOT_PAYOUT_STRAIGHT = 1.0;
+// 공정한 3D6 기준 장기 환급률 약 100% (1% 수수료 적용 시 약 99%).
+// 매 회 굴릴 때마다 운세(scale)가 가중 랜덤으로 뽑히며, 가중 평균 scale은 1.0이다.
+const SLOT_PAYOUT_TRIPLE6 = 16.39;
+const SLOT_PAYOUT_TRIPLE = 6.56;
+const SLOT_PAYOUT_PAIR = 1.37;
+const SLOT_PAYOUT_NEAR = 0.87;
+const SLOT_PAYOUT_LOW = 0.27;
+const SLOT_PAYOUT_STRAIGHT = 1.09;
 const SLOT_NEAR_SUM = 13;
 const SLOT_LOW_SUM = 10;
-// 10분마다 전체 서버가 같은 운세 파동을 공유한다.
-// scale은 기준 배당에 곱해지며, 가중 평균은 장기적으로 하우스 우위(~90%)를 유지한다.
-const DICE_WAVE_MS = 10 * 60 * 1000;
 const DICE_WAVES = [
-  { key: "cold", name: "한파", emoji: "🥶", bias: "lose", hint: "배당이 약합니다. 손실 구간.", scale: 0.88, weight: 2 },
-  { key: "cool", name: "쌀쌀", emoji: "😮‍💨", bias: "lose", hint: "살짝 불리한 구간입니다.", scale: 0.94, weight: 3 },
-  { key: "normal", name: "평온", emoji: "🎲", bias: "neutral", hint: "보통 배당 구간입니다.", scale: 1.0, weight: 3 },
-  { key: "warm", name: "훈풍", emoji: "🌤️", bias: "win", hint: "배당이 살짝 유리합니다.", scale: 1.12, weight: 2 },
-  { key: "hot", name: "대박", emoji: "🔥", bias: "win", hint: "고배당 구간! 따기 좋은 때.", scale: 1.25, weight: 1 }
+  { key: "cold", name: "한파", emoji: "🥶", bias: "lose", hint: "배당이 약합니다.", scale: 0.874, weight: 2 },
+  { key: "cool", name: "쌀쌀", emoji: "😮‍💨", bias: "lose", hint: "살짝 불리합니다.", scale: 0.934, weight: 3 },
+  { key: "normal", name: "평온", emoji: "🎲", bias: "neutral", hint: "보통 배당입니다.", scale: 0.994, weight: 3 },
+  { key: "warm", name: "훈풍", emoji: "🌤️", bias: "win", hint: "배당이 살짝 유리합니다.", scale: 1.113, weight: 2 },
+  { key: "hot", name: "대박", emoji: "🔥", bias: "win", hint: "고배당! 따기 좋은 운세.", scale: 1.242, weight: 1 }
 ];
+const DICE_BASE_EV = 1.0005; // 기준 배당 기대 배율 (수수료 전)
 const DICE_TIERS = [
   { key: "beginner", name: "초급", emoji: "🎲", maxBet: 100, unlockCost: 0 },
   { key: "intermediate", name: "중급", emoji: "🎰", maxBet: 500, unlockCost: 300 },
@@ -243,8 +241,8 @@ module.exports = {
   SLOT_PAYOUT_STRAIGHT,
   SLOT_NEAR_SUM,
   SLOT_LOW_SUM,
-  DICE_WAVE_MS,
   DICE_WAVES,
+  DICE_BASE_EV,
   DICE_TIERS,
   DICE_MAX_BET,
   LOTTERY_FEE_RATE,

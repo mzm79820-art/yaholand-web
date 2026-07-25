@@ -178,7 +178,7 @@ const sfx = {
 const GAME_TIPS = [
   "가위바위보는 하루 20회까지입니다. 큰 금액은 연승이 쌓일 때 올려보세요.",
   "포인트가 부족하면 우상단 포인트를 눌러 구매 페이지로 이동할 수 있습니다.",
-  "주사위 운세는 10분마다 바뀝니다. 대박 구간에 노려보세요.",
+  "주사위는 굴릴 때마다 운세가 새로 적용됩니다. 장기 평균 환급률은 약 99%입니다.",
   "행운당첨은 매일 저녁 9시에 추첨됩니다. 구매 수수료 10%는 상금풀에 들어가지 않습니다.",
   "낚시 미끼는 상점에서 미리 사두면 연속으로 낚기 편합니다.",
   "채굴은 쿨타임 없이 무제한입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
@@ -621,7 +621,6 @@ async function act(name, body = {}) {
 }
 
 function closeOverlay() {
-  stopDiceWaveTimer();
   stopLotteryTimer();
   state.overlay = null;
   overlayEl.classList.add("hidden");
@@ -680,19 +679,25 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       }
       return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name}<br/><span class="meta">${t.unlockCost}P 개방</span></button>`;
     }).join("");
-    const wave = g.diceWave || { emoji: "🎲", name: "평온", hint: "보통 배당", expectedRtp: 90, remainSec: 600, bias: "neutral", endsAt: Date.now() + 600000 };
-    const remainMin = Math.floor((wave.remainSec || 0) / 60);
-    const remainSec = (wave.remainSec || 0) % 60;
-    const remainText = `${remainMin}:${String(remainSec).padStart(2, "0")}`;
-    const biasClass = wave.bias === "win" ? "wave-win" : wave.bias === "lose" ? "wave-lose" : "wave-neutral";
+    const waveInfo = g.diceWave || { avgRtp: 99, waves: [], last: null };
+    const last = waveInfo.last;
+    const biasClass = last?.bias === "win" ? "wave-win" : last?.bias === "lose" ? "wave-lose" : "wave-neutral";
+    const lastBlock = last
+      ? `<div class="dice-wave ${biasClass}">
+           <div class="dice-wave-main">${last.emoji} 직전 운세 · ${last.name} (×${last.scale})</div>
+           <div class="dice-wave-sub">${last.hint || ""} · 예상환급 약 ${last.expectedRtp}%</div>
+         </div>`
+      : `<div class="dice-wave wave-neutral">
+           <div class="dice-wave-main">🎲 운세는 굴리는 순간 결정됩니다</div>
+           <div class="dice-wave-sub">한파~대박 중 하나가 바로 적용 · 장기 평균 약 ${waveInfo.avgRtp || 99}%</div>
+         </div>`;
+    const waveRows = (waveInfo.waves || [])
+      .map((w) => `<div class="item"><span>${w.emoji} ${w.name}</span><span class="meta">×${w.scale} · ${w.chance}%</span></div>`)
+      .join("");
     body = `
       <div class="stage-art"><img src="/img/dice-slot.png" alt="슬롯" /></div>
       <div class="tier-row">${tierBtns}</div>
-      <div class="dice-wave ${biasClass}" id="diceWave" data-ends-at="${wave.endsAt || ""}">
-        <div class="dice-wave-main">${wave.emoji} 운세 · ${wave.name}</div>
-        <div class="dice-wave-sub">${wave.hint || ""} · 예상환급 약 ${wave.expectedRtp}%</div>
-        <div class="dice-wave-timer">다음 변동까지 <span id="diceWaveRemain">${remainText}</span></div>
-      </div>
+      ${lastBlock}
       <div class="dice-board" id="diceBoard">
         <span class="die" id="die0">🎲</span>
         <span class="die" id="die1">🎲</span>
@@ -704,8 +709,12 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       </label>
       ${betControls("betDice", active.maxBet)}
       <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</p>
-      <p class="muted center">10분마다 운세가 바뀝니다. 장기 평균은 하우스 우위입니다.</p>
       <button class="btn accent big" id="diceBtn">🎰 ${active.name} 주사위 굴리기</button>
+      <div class="panel stack">
+        <h3>운세 확률</h3>
+        <p class="muted">매 회 새로 뽑혀 배당에 바로 적용됩니다.</p>
+        ${waveRows}
+      </div>
     `;
   } else if (kind === "fish") {
     const baitOpts = (g.catalogs.baits || [])
@@ -890,7 +899,6 @@ function bindOverlay(kind, meta) {
 
   if (kind === "dice") {
     if (meta?.dice) applyDiceVisual(meta.dice, false);
-    startDiceWaveTimer();
     overlayEl.querySelectorAll("[data-dice-tier]").forEach((btn) => {
       btn.onclick = () => {
         state.diceTier = btn.dataset.diceTier;
@@ -1114,46 +1122,13 @@ function applyDiceVisual(dice, animate) {
   });
 }
 
-let diceWaveTimerId = null;
-
-function stopDiceWaveTimer() {
-  if (diceWaveTimerId) {
-    clearInterval(diceWaveTimerId);
-    diceWaveTimerId = null;
-  }
-}
+let lotteryTimerId = null;
 
 function formatRemain(sec) {
   const s = Math.max(0, Math.floor(sec));
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
-
-function startDiceWaveTimer() {
-  stopDiceWaveTimer();
-  const box = overlayEl.querySelector("#diceWave");
-  const remainEl = overlayEl.querySelector("#diceWaveRemain");
-  if (!box || !remainEl) return;
-  const endsAt = Number(box.dataset.endsAt) || 0;
-  const tick = async () => {
-    const left = Math.ceil((endsAt - Date.now()) / 1000);
-    remainEl.textContent = formatRemain(left);
-    if (left <= 0) {
-      stopDiceWaveTimer();
-      try {
-        const data = await api("/api/me");
-        if (data.state) state.game = data.state;
-      } catch {
-        /* ignore */
-      }
-      if (state.overlay === "dice") openOverlay("dice", null, true);
-    }
-  };
-  tick();
-  diceWaveTimerId = setInterval(tick, 1000);
-}
-
-let lotteryTimerId = null;
 
 function stopLotteryTimer() {
   if (lotteryTimerId) {

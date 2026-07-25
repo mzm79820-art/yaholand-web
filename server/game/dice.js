@@ -47,19 +47,11 @@ function rollDice() {
   return [randInt(1, 6), randInt(1, 6), randInt(1, 6)];
 }
 
-/** 에포크 기반 결정적 난수 (0~1). 모든 유저·서버가 같은 10분 구간에 같은 값을 본다. */
-function epochUnit(epoch) {
-  let x = Math.imul(epoch ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
-  x ^= x >>> 13;
-  x = Math.imul(x, 0xc2b2ae35) >>> 0;
-  x ^= x >>> 16;
-  return (x >>> 0) / 4294967296;
-}
-
-function pickWave(epoch) {
+/** 매 회 굴림마다 가중 랜덤으로 운세를 뽑는다. */
+function pickWave() {
   const waves = C.DICE_WAVES;
   const total = waves.reduce((s, w) => s + w.weight, 0);
-  let r = epochUnit(epoch) * total;
+  let r = Math.random() * total;
   for (const wave of waves) {
     r -= wave.weight;
     if (r <= 0) return wave;
@@ -67,28 +59,32 @@ function pickWave(epoch) {
   return waves[waves.length - 1];
 }
 
-function getDiceWave(now = Date.now()) {
-  const windowMs = C.DICE_WAVE_MS || 10 * 60 * 1000;
-  const epoch = Math.floor(now / windowMs);
-  const wave = pickWave(epoch);
-  const endsAt = (epoch + 1) * windowMs;
-  const remainMs = Math.max(0, endsAt - now);
-  // 기준 배당 EV(~91.5%) × scale → 수수료 1% 반영 예상 환급률
-  const expectedRtp = Math.round(C.DICE_FEE_RATE != null
-    ? (0.915278 * wave.scale * (1 - C.DICE_FEE_RATE)) * 1000
-    : 0.915278 * wave.scale * 1000) / 10;
+function waveView(wave) {
+  const baseEv = C.DICE_BASE_EV || 1;
+  const expectedRtp = Math.round(baseEv * wave.scale * (1 - C.DICE_FEE_RATE) * 1000) / 10;
   return {
-    epoch,
     key: wave.key,
     name: wave.name,
     emoji: wave.emoji,
     bias: wave.bias,
     hint: wave.hint,
     scale: wave.scale,
-    expectedRtp,
-    endsAt,
-    remainMs,
-    remainSec: Math.ceil(remainMs / 1000)
+    expectedRtp
+  };
+}
+
+/** UI용: 매 회 랜덤 운세 안내 + 직전 결과 */
+function getDiceWave(data) {
+  const totalWeight = C.DICE_WAVES.reduce((s, w) => s + w.weight, 0);
+  const avgRtp = Math.round((C.DICE_BASE_EV || 1) * (1 - C.DICE_FEE_RATE) * 1000) / 10;
+  return {
+    mode: "perRoll",
+    avgRtp,
+    waves: C.DICE_WAVES.map((w) => ({
+      ...waveView(w),
+      chance: Math.round((w.weight / totalWeight) * 1000) / 10
+    })),
+    last: data?.lastDiceWave || null
   };
 }
 
@@ -149,7 +145,10 @@ function playDice(point, data, bet, tierKey = "beginner") {
     return { ok: false, error: `오늘 주사위 ${C.DAILY_DICE_LIMIT}회를 모두 사용했습니다.` };
   }
 
-  const wave = getDiceWave();
+  // 굴리는 순간 운세를 새로 뽑아 이번 판 배당에 바로 적용한다.
+  const wave = waveView(pickWave());
+  data.lastDiceWave = wave;
+
   const fee = Math.floor(bet * C.DICE_FEE_RATE);
   const stake = bet - fee;
   point -= bet;
@@ -170,7 +169,7 @@ function playDice(point, data, bet, tierKey = "beginner") {
     data,
     log: [
       `${tier.emoji} ${tier.name} · ${faces}  (${dice.join("-")})`,
-      `${wave.emoji} 운세 ${wave.name} (×${wave.scale}) · 예상환급 ${wave.expectedRtp}%`,
+      `${wave.emoji} 이번 운세 ${wave.name} (×${wave.scale}) · 예상환급 ${wave.expectedRtp}%`,
       `${label} ×${mult}${base !== mult ? ` (기본 ${base})` : ""}`,
       `베팅 ${bet}P · 수수료 ${fee}P · 판돈 ${stake}P`,
       ...(cursed && win > 0 ? [`🕯️ 불운 저주: 당첨금 ${Math.round((1 - curseMult) * 100)}% 감소`] : []),

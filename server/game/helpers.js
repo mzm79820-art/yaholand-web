@@ -156,7 +156,7 @@ function publicState(user, point, data) {
     },
     sword: getSwordView(data),
     diceTiers: getDiceUnlockView(data),
-    diceWave: require("./dice").getDiceWave(),
+    diceWave: require("./dice").getDiceWave(data),
     lottery: require("./lottery").getLotteryView(user.id),
     status: {
       wantedBounty: data.wantedBounty || 0,
