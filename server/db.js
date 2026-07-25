@@ -89,7 +89,15 @@ function defaultPlayerData() {
     dailyQuestDate: "",
     dailyQuests: [],
     dailyQuestBonusClaimed: false,
-    questChatCount: 0
+    questChatCount: 0,
+    farm: {
+      seeds: {},
+      plots: [],
+      crops: [],
+      cropSeq: 0
+    },
+    notifications: [],
+    notifySeq: 0
   };
 }
 
@@ -111,6 +119,13 @@ function normalizePlayerData(raw) {
     data.equipSlotsVer = 2;
   }
   if (!data.skillCounts || typeof data.skillCounts !== "object") data.skillCounts = {};
+  if (!data.farm || typeof data.farm !== "object") {
+    data.farm = { seeds: {}, plots: [], crops: [], cropSeq: 0 };
+  }
+  if (!data.farm.seeds || typeof data.farm.seeds !== "object") data.farm.seeds = {};
+  if (!Array.isArray(data.farm.plots)) data.farm.plots = [];
+  if (!Array.isArray(data.farm.crops)) data.farm.crops = [];
+  if (!Array.isArray(data.notifications)) data.notifications = [];
   return data;
 }
 

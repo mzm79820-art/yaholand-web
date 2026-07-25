@@ -126,6 +126,22 @@ function formatActivity(user, action, result, body = {}) {
       return `🎟 ${n}님 행운당첨 복권 구매 (${paid}P · 응모 ${stake}P)`;
     }
 
+    case "farm-gacha": {
+      const cropKey = meta.crop;
+      const crop = C.FARM_CROPS.find((c) => c.key === cropKey);
+      return crop
+        ? `🌱 ${n}님 씨앗 가챠 ${crop.emoji} ${crop.name}`
+        : `🌱 ${n}님 씨앗을 뽑았습니다`;
+    }
+
+    case "farm-sell": {
+      const net = meta.net;
+      const crop = C.FARM_CROPS.find((c) => c.key === meta.crop);
+      if (!crop) return `🧺 ${n}님 농작물을 판매했습니다`;
+      const sign = net >= 0 ? `+${net}` : `${net}`;
+      return `🧺 ${n}님 ${crop.emoji} ${crop.name} 판매 ${meta.price}P (${sign}P)`;
+    }
+
     default:
       return null;
   }

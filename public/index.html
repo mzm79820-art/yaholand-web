@@ -13,7 +13,13 @@
 <body>
   <div class="phone">
     <header class="top">
-      <div class="brand">야호랜드</div>
+      <div class="top-left">
+        <button type="button" id="notifyBtn" class="notify-btn hidden" aria-label="알림" title="알림">
+          🔔
+          <span id="notifyBadge" class="notify-badge hidden">0</span>
+        </button>
+        <div class="brand">야호랜드</div>
+      </div>
       <div class="top-right">
         <div class="bgm-ctrl">
           <button type="button" id="bgmBtn" class="bgm-btn" aria-label="배경음악" title="배경음악">♪</button>
@@ -28,6 +34,8 @@
         </div>
       </div>
     </header>
+
+    <div id="notifyPanel" class="notify-panel hidden" aria-hidden="true"></div>
 
     <audio id="bgm" preload="none"></audio>
 

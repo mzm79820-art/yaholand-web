@@ -15,6 +15,14 @@ const { useJobSkill } = require("./game/jobSkills");
 const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
 const { mine } = require("./game/mine");
 const { buyLottery, runDueDraw } = require("./game/lottery");
+const {
+  pullSeedGacha,
+  plantSeed,
+  waterPlot,
+  harvestPlot,
+  sellCrop,
+  markNotificationsRead
+} = require("./game/farm");
 const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
 const { attachChat, broadcastActivity } = require("./chat");
 const { formatActivity } = require("./activityFeed");
@@ -135,7 +143,13 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "sword-claim": (p, d) => claimSword(p, d),
     "quest-claim": (p, d) => claimQuest(p, d, body.questId, req.user.id),
     "quest-bonus": (p, d) => claimQuestBonus(p, d, req.user.id),
-    "lottery-buy": (p, d) => buyLottery(p, d, req.user, body.amount)
+    "lottery-buy": (p, d) => buyLottery(p, d, req.user, body.amount),
+    "farm-gacha": (p, d) => pullSeedGacha(p, d),
+    "farm-plant": (p, d) => plantSeed(p, d, body.plotIndex, body.seedKey),
+    "farm-water": (p, d) => waterPlot(p, d, body.plotIndex),
+    "farm-harvest": (p, d) => harvestPlot(p, d, body.plotIndex),
+    "farm-sell": (p, d) => sellCrop(p, d, body.cropId),
+    "notifications-read": (p, d) => markNotificationsRead(p, d)
   };
 
   const fn = handlers[name];

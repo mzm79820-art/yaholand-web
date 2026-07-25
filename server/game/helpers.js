@@ -158,6 +158,8 @@ function publicState(user, point, data) {
     diceTiers: getDiceUnlockView(data),
     diceWave: require("./dice").getDiceWave(data),
     lottery: require("./lottery").getLotteryView(user.id),
+    farm: require("./farm").getFarmView(data),
+    notifications: require("./farm").getNotificationsView(data),
     status: {
       wantedBounty: data.wantedBounty || 0,
       cursed: (data.curseUntil || 0) > Date.now(),
@@ -176,6 +178,14 @@ function publicState(user, point, data) {
         maxBuy: C.LOTTERY_MAX_BUY,
         drawHour: C.LOTTERY_DRAW_HOUR_KST,
         prizes: C.LOTTERY_PRIZE_SHARES
+      },
+      farm: {
+        crops: C.FARM_CROPS,
+        gachaCost: C.FARM_GACHA_COST,
+        waterCost: C.FARM_WATER_COST,
+        plotCount: C.FARM_PLOT_COUNT,
+        marketMs: C.FARM_MARKET_MS,
+        cropTtlMs: C.FARM_CROP_TTL_MS
       },
       petFoodPrice: C.PET_FOOD_PRICE,
       trainCost: C.TRAIN_COST,

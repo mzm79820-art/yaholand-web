@@ -10,6 +10,7 @@ const state = {
   diceTier: "beginner",
   bait: "basic",
   overlay: null,
+  selectedSeed: null,
   chat: [],
   online: [],
   ranking: null
@@ -24,6 +25,9 @@ const overlayEl = document.getElementById("overlay");
 const bgmEl = document.getElementById("bgm");
 const bgmBtn = document.getElementById("bgmBtn");
 const bgmNextBtn = document.getElementById("bgmNextBtn");
+const notifyBtn = document.getElementById("notifyBtn");
+const notifyBadge = document.getElementById("notifyBadge");
+const notifyPanel = document.getElementById("notifyPanel");
 
 const BGM_MUTE_KEY = "yl_bgm_muted";
 const BGM_TRACKS = [
@@ -179,6 +183,9 @@ const GAME_TIPS = [
   "가위바위보는 하루 20회까지입니다. 큰 금액은 연승이 쌓일 때 올려보세요.",
   "포인트가 부족하면 우상단 포인트를 눌러 구매 페이지로 이동할 수 있습니다.",
   "주사위는 판마다 이득 또는 손실이 납니다. 99%는 패배 확률이 아니라 장기 평균 반환율입니다.",
+  "농사는 씨앗을 가챠로 뽑고, 심고, 물을 준 뒤 수확합니다. 시세를 보고 판매하세요.",
+  "수확한 농작물은 24시간 안에 팔지 않으면 폐기됩니다. 좌상단 알림을 확인하세요.",
+  "농작물 시세는 5분마다 바뀝니다. 하락장에 팔면 손해를 볼 수 있습니다.",
   "행운당첨은 매일 저녁 9시에 추첨됩니다. 구매 수수료 10%는 상금풀에 들어가지 않습니다.",
   "낚시 미끼는 상점에서 미리 사두면 연속으로 낚기 편합니다.",
   "채굴은 쿨타임 없이 무제한입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
@@ -497,8 +504,11 @@ function showToast(text) {
 function showAuth() {
   disconnectChat();
   closeOverlay();
+  closeNotifyPanel();
   hudEl.classList.add("hidden");
   navEl.classList.add("hidden");
+  if (notifyBtn) notifyBtn.classList.add("hidden");
+  updateNotifyBadge();
   const mode = state.authMode;
   appEl.innerHTML = `
     <div class="auth-hero">
@@ -602,6 +612,7 @@ async function act(name, body = {}) {
     if (data.log) state.lastLog = Array.isArray(data.log) ? data.log.join("\n") : String(data.log);
     nickEl.textContent = state.game.nickname;
     pointEl.textContent = `${state.game.point}P`;
+    updateNotifyBadge();
     return data;
   } catch (ex) {
     if (ex.code === "NO_POINT" || /포인트가 없/.test(ex.message || "")) {
@@ -615,6 +626,7 @@ async function act(name, body = {}) {
 
 function closeOverlay() {
   stopLotteryTimer();
+  stopFarmTimer();
   state.overlay = null;
   overlayEl.classList.add("hidden");
   overlayEl.innerHTML = "";
@@ -622,6 +634,7 @@ function closeOverlay() {
 
 function openOverlay(kind, meta = null, keepOpen = false) {
   if (!keepOpen) state.overlay = kind;
+  closeNotifyPanel();
   const g = state.game;
   if (!g) return;
 
@@ -794,6 +807,94 @@ function openOverlay(kind, meta = null, keepOpen = false) {
         ${lastRows}
       </div>
     `;
+  } else if (kind === "farm") {
+    const farm = g.farm || {};
+    const market = farm.market || { items: [], remainMs: 0, nextAt: 0 };
+    const gachaCost = farm.gachaCost || g.catalogs?.farm?.gachaCost || 80;
+    const waterCost = farm.waterCost || g.catalogs?.farm?.waterCost || 10;
+    const marketRows = (market.items || [])
+      .map((m) => {
+        const cls = m.pct >= 100 ? "pct-up" : "pct-down";
+        return `<div class="farm-market-item"><span>${m.emoji} ${escapeHtml(m.name)}</span><span class="${cls}">${m.pct}% · ${m.price}P</span></div>`;
+      })
+      .join("");
+    const plots = (farm.plots || [])
+      .map((p) => {
+        if (p.status === "empty") {
+          return `<div class="farm-plot empty" data-farm-plot="${p.index}">
+            <div class="emoji">🪴</div>
+            <div class="label">빈 밭 ${p.index + 1}</div>
+            <div class="meta">${state.selectedSeed ? "탭하여 심기" : "씨앗을 선택하세요"}</div>
+          </div>`;
+        }
+        const name = p.crop?.name || "?";
+        const emoji = p.crop?.emoji || "🌱";
+        if (p.status === "needWater") {
+          return `<div class="farm-plot need-water">
+            <div class="emoji">${emoji}</div>
+            <div class="label">${escapeHtml(name)}</div>
+            <div class="meta">물 필요</div>
+            <button class="btn accent" data-farm-water="${p.index}">💧 물주기 (${waterCost}P)</button>
+          </div>`;
+        }
+        if (p.status === "growing") {
+          return `<div class="farm-plot growing">
+            <div class="emoji">${emoji}</div>
+            <div class="label">${escapeHtml(name)}</div>
+            <div class="meta">성장 중 · <span data-farm-countdown data-ends-at="${p.readyAt}">${formatRemainMs(p.remainMs)}</span></div>
+          </div>`;
+        }
+        return `<div class="farm-plot ready">
+          <div class="emoji">${emoji}</div>
+          <div class="label">${escapeHtml(name)}</div>
+          <div class="meta">수확 가능!</div>
+          <button class="btn accent" data-farm-harvest="${p.index}">🧺 수확</button>
+        </div>`;
+      })
+      .join("");
+    const seedChips = (farm.seeds || []).length
+      ? (farm.seeds || [])
+          .map((s) => `<button type="button" class="btn chip ghost ${state.selectedSeed === s.key ? "selected" : ""}" data-farm-seed="${s.key}">${s.emoji} ${escapeHtml(s.name)} ×${s.qty}</button>`)
+          .join("")
+      : `<p class="muted">보유 씨앗이 없습니다. 가챠로 뽑아 보세요.</p>`;
+    const cropRows = (farm.crops || []).length
+      ? (farm.crops || [])
+          .map((c) => {
+            const netCls = c.net >= 0 ? "net-up" : "net-down";
+            const netTxt = c.net >= 0 ? `+${c.net}` : `${c.net}`;
+            return `<div class="farm-crop-item">
+              <div>
+                <div><b>${c.emoji} ${escapeHtml(c.name)}</b> · 시세 ${c.marketPct}%</div>
+                <div class="meta">판매가 ${c.sellPrice}P · 투자 ${c.invested}P · <span class="${netCls}">${netTxt}P</span></div>
+                <div class="meta">폐기까지 <span data-farm-countdown data-ends-at="${c.expiresAt}">${formatRemainMs(c.remainMs)}</span></div>
+              </div>
+              <button class="btn accent" data-farm-sell="${c.id}">판매</button>
+            </div>`;
+          })
+          .join("")
+      : `<p class="muted">수확한 작물이 없습니다.</p>`;
+    body = `
+      <div class="farm-market" id="farmMarket" data-ends-at="${market.nextAt || ""}">
+        <div class="farm-market-head">
+          <span>📊 농작물 시세</span>
+          <span>다음 변동 <span id="farmMarketRemain">${formatRemainMs(market.remainMs || 0)}</span></span>
+        </div>
+        <div class="farm-market-grid">${marketRows || '<p class="muted">시세 없음</p>'}</div>
+      </div>
+      <div class="farm-grid">${plots}</div>
+      <div class="panel stack farm-crop-list">
+        <h3>작물 가방 <span class="pill">${(farm.crops || []).length}</span></h3>
+        <p class="muted">24시간 안에 판매하지 않으면 폐기됩니다.</p>
+        ${cropRows}
+      </div>
+      <div class="panel stack farm-seed-row">
+        <h3>씨앗 가방</h3>
+        <p class="muted">씨앗을 고른 뒤 빈 밭을 탭하세요.</p>
+        <div class="farm-seed-chips">${seedChips}</div>
+        <button class="btn accent big" id="farmGachaBtn">🎰 씨앗 가챠 (${gachaCost}P)</button>
+      </div>
+      <div class="result-panel" id="farmLog">가챠 → 심기 → 물주기 → 수확 → 시세 판매</div>
+    `;
   } else if (kind === "dungeon") {
     const tower = meta?.tower || (g.dungeon.towers || [])[0] || {};
     if (!tower.unlocked) {
@@ -827,6 +928,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     mine: "채굴",
     sword: "검 강화",
     lottery: "행운당첨",
+    farm: "농사",
     dungeon: "던전"
   };
 
@@ -997,6 +1099,88 @@ function bindOverlay(kind, meta) {
     };
   }
 
+  if (kind === "farm") {
+    startFarmTimer();
+    const setFarmLog = (data) => {
+      const log = overlayEl.querySelector("#farmLog");
+      if (log) log.textContent = (data.log || []).join("\n");
+      const pt = overlayEl.querySelector(".point");
+      if (pt && data.state) pt.textContent = `${data.state.point}P`;
+    };
+    overlayEl.querySelector("#farmGachaBtn").onclick = async () => {
+      try {
+        const data = await act("farm-gacha");
+        openOverlay("farm", null, true);
+        setFarmLog(data);
+        showToast((data.log && data.log[0]) || "씨앗 획득!");
+      } catch {
+        /* act */
+      }
+    };
+    overlayEl.querySelectorAll("[data-farm-seed]").forEach((btn) => {
+      btn.onclick = () => {
+        state.selectedSeed = btn.dataset.farmSeed;
+        openOverlay("farm", null, true);
+      };
+    });
+    overlayEl.querySelectorAll("[data-farm-plot]").forEach((el) => {
+      el.onclick = async () => {
+        if (!state.selectedSeed) {
+          showToast("먼저 씨앗을 선택하세요.");
+          return;
+        }
+        try {
+          const data = await act("farm-plant", {
+            plotIndex: Number(el.dataset.farmPlot),
+            seedKey: state.selectedSeed
+          });
+          openOverlay("farm", null, true);
+          setFarmLog(data);
+          showToast((data.log && data.log[0]) || "심기 완료");
+        } catch {
+          /* act */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-farm-water]").forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const data = await act("farm-water", { plotIndex: Number(btn.dataset.farmWater) });
+          openOverlay("farm", null, true);
+          setFarmLog(data);
+        } catch {
+          /* act */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-farm-harvest]").forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const data = await act("farm-harvest", { plotIndex: Number(btn.dataset.farmHarvest) });
+          openOverlay("farm", null, true);
+          setFarmLog(data);
+          showToast((data.log && data.log[0]) || "수확!");
+        } catch {
+          /* act */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-farm-sell]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("farm-sell", { cropId: Number(btn.dataset.farmSell) });
+          openOverlay("farm", null, true);
+          setFarmLog(data);
+          showToast((data.log && data.log[0]) || "판매 완료");
+        } catch {
+          /* act */
+        }
+      };
+    });
+  }
+
   if (kind === "sword") {
     overlayEl.querySelectorAll("[data-sword-action]").forEach((btn) => {
       btn.onclick = async () => {
@@ -1145,6 +1329,127 @@ function startLotteryTimer() {
   lotteryTimerId = setInterval(tick, 1000);
 }
 
+let farmTimerId = null;
+
+function formatRemainMs(ms) {
+  const s = Math.max(0, Math.floor(Number(ms) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}시간 ${m}분`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function stopFarmTimer() {
+  if (farmTimerId) {
+    clearInterval(farmTimerId);
+    farmTimerId = null;
+  }
+}
+
+function startFarmTimer() {
+  stopFarmTimer();
+  const marketBox = overlayEl.querySelector("#farmMarket");
+  if (!marketBox) return;
+  const marketRemain = overlayEl.querySelector("#farmMarketRemain");
+  const marketEnds = Number(marketBox.dataset.endsAt) || 0;
+  let refreshed = false;
+
+  const tick = async () => {
+    const now = Date.now();
+    if (marketRemain) marketRemain.textContent = formatRemainMs(Math.max(0, marketEnds - now));
+    overlayEl.querySelectorAll("[data-farm-countdown]").forEach((el) => {
+      const ends = Number(el.dataset.endsAt) || 0;
+      el.textContent = formatRemainMs(Math.max(0, ends - now));
+    });
+    const needRefresh =
+      (!refreshed && marketEnds > 0 && now >= marketEnds) ||
+      [...overlayEl.querySelectorAll(".farm-plot.growing [data-farm-countdown]")].some((el) => {
+        const ends = Number(el.dataset.endsAt) || 0;
+        return ends > 0 && now >= ends;
+      });
+    if (needRefresh) {
+      refreshed = true;
+      try {
+        const data = await api("/api/me");
+        if (data.state) {
+          state.game = data.state;
+          updateNotifyBadge();
+        }
+      } catch {
+        /* ignore */
+      }
+      if (state.overlay === "farm") openOverlay("farm", null, true);
+    }
+  };
+  tick();
+  farmTimerId = setInterval(tick, 1000);
+}
+
+function updateNotifyBadge() {
+  if (!notifyBtn || !notifyBadge) return;
+  const count = state.game?.notifications?.unreadCount || 0;
+  if (!state.game) {
+    notifyBtn.classList.add("hidden");
+    notifyBadge.classList.add("hidden");
+    return;
+  }
+  notifyBtn.classList.remove("hidden");
+  if (count > 0) {
+    notifyBadge.textContent = count > 99 ? "99+" : String(count);
+    notifyBadge.classList.remove("hidden");
+  } else {
+    notifyBadge.classList.add("hidden");
+  }
+}
+
+function closeNotifyPanel() {
+  if (!notifyPanel) return;
+  notifyPanel.classList.add("hidden");
+  notifyPanel.setAttribute("aria-hidden", "true");
+  notifyPanel.innerHTML = "";
+}
+
+function formatNotifyTime(at) {
+  const d = new Date(at || Date.now());
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+async function openNotifyPanel() {
+  if (!notifyPanel || !state.game) return;
+  closeOverlay();
+  const items = state.game.notifications?.items || [];
+  const rows = items.length
+    ? items
+        .map(
+          (n) => `<div class="notify-item ${n.read ? "" : "unread"}">
+            <div>${escapeHtml(n.text)}</div>
+            <div class="meta">${formatNotifyTime(n.at)}</div>
+          </div>`
+        )
+        .join("")
+    : `<div class="notify-empty">알림이 없습니다.</div>`;
+  notifyPanel.innerHTML = `
+    <div class="notify-panel-head">
+      <span>알림</span>
+      <button type="button" class="btn ghost" id="notifyCloseBtn" style="flex:0;padding:6px 10px">닫기</button>
+    </div>
+    ${rows}
+  `;
+  notifyPanel.classList.remove("hidden");
+  notifyPanel.setAttribute("aria-hidden", "false");
+  notifyPanel.querySelector("#notifyCloseBtn").onclick = () => closeNotifyPanel();
+  try {
+    const data = await act("notifications-read");
+    if (data.state) {
+      state.game = data.state;
+      updateNotifyBadge();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -1253,6 +1558,13 @@ function renderPlay() {
       <div>
         <strong>행운당첨</strong>
         <span>상금풀 ${(g.lottery?.pot || 0).toLocaleString()}P · 매일 21시</span>
+      </div>
+    </button>
+    <button class="game-card" data-open="farm">
+      <div class="game-card-icon">🌾</div>
+      <div>
+        <strong>농사</strong>
+        <span>가챠·심기·시세 판매 · 보관 ${(g.farm?.crops || []).length}개</span>
       </div>
     </button>
   `;
@@ -1666,6 +1978,8 @@ function bindCommon() {
       state.chat = [];
       state.ranking = null;
       state.online = [];
+      state.selectedSeed = null;
+      closeNotifyPanel();
       showAuth();
     };
   }
@@ -1859,6 +2173,7 @@ function render() {
   navEl.classList.remove("hidden");
   nickEl.textContent = state.game.nickname;
   pointEl.textContent = `${state.game.point}P`;
+  updateNotifyBadge();
 
   navEl.querySelectorAll("button").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === state.tab);
@@ -1885,6 +2200,7 @@ function render() {
 navEl.querySelectorAll("button").forEach((btn) => {
   btn.onclick = async () => {
     closeOverlay();
+    closeNotifyPanel();
     state.tab = btn.dataset.tab;
     if (state.tab === "home" && state.game) {
       try {
@@ -1906,6 +2222,14 @@ navEl.querySelectorAll("button").forEach((btn) => {
     render();
   };
 });
+
+if (notifyBtn && !notifyBtn.dataset.bound) {
+  notifyBtn.dataset.bound = "1";
+  notifyBtn.onclick = () => {
+    if (notifyPanel && !notifyPanel.classList.contains("hidden")) closeNotifyPanel();
+    else openNotifyPanel();
+  };
+}
 
 (async function boot() {
   try {

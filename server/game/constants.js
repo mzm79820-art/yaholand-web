@@ -213,6 +213,25 @@ const SWORD_RUN = {
   rewardKey: "forged_blade"
 };
 
+// 농사 — 가챠 씨앗 → 심기 → 물주기 → 성장 → 보관 → 시세 판매 (미판매 24시간 폐기)
+const FARM_PLOT_COUNT = 4;
+const FARM_GACHA_COST = 80;
+const FARM_WATER_COST = 10;
+const FARM_MARKET_MS = 5 * 60 * 1000;
+const FARM_CROP_TTL_MS = 24 * 60 * 60 * 1000;
+const FARM_MARKET_MIN = 0.55;
+const FARM_MARKET_MAX = 1.45;
+const FARM_CROPS = [
+  { key: "radish", name: "무", emoji: "🌱", rarity: 1, weight: 40, growMs: 3 * 60 * 1000, seedCost: 40, basePrice: 50 },
+  { key: "carrot", name: "당근", emoji: "🥕", rarity: 1, weight: 35, growMs: 4 * 60 * 1000, seedCost: 45, basePrice: 55 },
+  { key: "lettuce", name: "상추", emoji: "🥬", rarity: 1, weight: 30, growMs: 3 * 60 * 1000, seedCost: 40, basePrice: 50 },
+  { key: "tomato", name: "토마토", emoji: "🍅", rarity: 2, weight: 18, growMs: 7 * 60 * 1000, seedCost: 70, basePrice: 80 },
+  { key: "corn", name: "옥수수", emoji: "🌽", rarity: 2, weight: 15, growMs: 8 * 60 * 1000, seedCost: 75, basePrice: 85 },
+  { key: "watermelon", name: "수박", emoji: "🍉", rarity: 3, weight: 8, growMs: 12 * 60 * 1000, seedCost: 100, basePrice: 110 },
+  { key: "grape", name: "포도", emoji: "🍇", rarity: 3, weight: 6, growMs: 13 * 60 * 1000, seedCost: 110, basePrice: 120 },
+  { key: "goldrice", name: "황금벼", emoji: "🌾", rarity: 4, weight: 2, growMs: 15 * 60 * 1000, seedCost: 150, basePrice: 160 }
+];
+
 function buildLevelExp() {
   const exp = [100, 200, 400, 800];
   while (exp.length < PET_MAX_LEVEL - 1) {
@@ -294,5 +313,13 @@ module.exports = {
   BANK,
   JOB_SKILLS,
   SWORD_RUN,
+  FARM_PLOT_COUNT,
+  FARM_GACHA_COST,
+  FARM_WATER_COST,
+  FARM_MARKET_MS,
+  FARM_CROP_TTL_MS,
+  FARM_MARKET_MIN,
+  FARM_MARKET_MAX,
+  FARM_CROPS,
   LEVEL_EXP
 };
