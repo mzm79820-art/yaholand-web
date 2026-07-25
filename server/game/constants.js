@@ -176,9 +176,9 @@ const DUNGEON_ITEMS = [
 
 // MVP: 보상·필요 전투력은 웹 초반에 맞게 축소
 const DUNGEON_LIST = [
-  { num: 1, rank: "F", emoji: "🏯", name: "던전1 · 초급 수호탑", hp: 500, armor: 5, reward: [20, 60], exp: 8, needPower: 50, unlockCost: 0 },
-  { num: 2, rank: "D", emoji: "🏯", name: "던전2 · 견습 수호탑", hp: 2500, armor: 30, reward: [50, 120], exp: 20, needPower: 400, unlockCost: 400 },
-  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000, unlockCost: 1000 }
+  { num: 1, rank: "F", emoji: "🏯", name: "던전1 · 초급 수호탑", hp: 500, armor: 5, reward: [20, 60], exp: 8, needPower: 50, unlockCost: 0, entryFee: 10 },
+  { num: 2, rank: "D", emoji: "🏯", name: "던전2 · 견습 수호탑", hp: 2500, armor: 30, reward: [50, 120], exp: 20, needPower: 400, unlockCost: 400, entryFee: 40 },
+  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000, unlockCost: 1000, entryFee: 120 }
 ];
 
 const DUNGEON_ITEM_DROP_RATE = { F: 0.4, D: 0.32, C: 0.26 };

@@ -84,6 +84,14 @@ function attachChat(server) {
     broadcast({ type: "online", online: onlineList() });
 
     ws.on("message", (buf) => {
+      try {
+        handleMessage(ws, user, buf);
+      } catch (e) {
+        console.error("[ws message]", e?.stack || e);
+      }
+    });
+
+    function handleMessage(ws, user, buf) {
       let data;
       try {
         data = JSON.parse(String(buf));
@@ -124,7 +132,7 @@ function attachChat(server) {
       }
       pushRecent(msg);
       broadcast(msg);
-    });
+    }
 
     ws.on("close", () => {
       clients.delete(ws);

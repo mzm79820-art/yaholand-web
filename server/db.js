@@ -131,6 +131,49 @@ function listUsers() {
   return store.users.map((u) => ({ id: u.id, username: u.username, nickname: u.nickname }));
 }
 
+/** 포인트 내림차순 랭킹. limit 기본 20. meUserId가 있으면 내 순위도 함께 계산. */
+function listPointRanking(limit = 20, meUserId = null) {
+  const rows = (store.users || []).map((u) => {
+    const player = store.players[String(u.id)];
+    return {
+      id: u.id,
+      nickname: u.nickname,
+      point: Math.floor(Number(player?.point) || 0),
+      job: player?.data?.job || null,
+      adventurerRank: player?.data?.adventurerRank || "F"
+    };
+  });
+  rows.sort((a, b) => b.point - a.point || a.id - b.id);
+  const top = rows.slice(0, Math.max(1, Math.min(100, Number(limit) || 20))).map((r, i) => ({
+    rank: i + 1,
+    id: r.id,
+    nickname: r.nickname,
+    point: r.point,
+    job: r.job,
+    adventurerRank: r.adventurerRank,
+    isMe: meUserId != null && r.id === meUserId
+  }));
+
+  let me = null;
+  if (meUserId != null) {
+    const idx = rows.findIndex((r) => r.id === meUserId);
+    if (idx >= 0) {
+      const r = rows[idx];
+      me = {
+        rank: idx + 1,
+        id: r.id,
+        nickname: r.nickname,
+        point: r.point,
+        job: r.job,
+        adventurerRank: r.adventurerRank,
+        isMe: true,
+        inTop: idx < top.length
+      };
+    }
+  }
+  return { top, me, total: rows.length };
+}
+
 function insertUser({ username, passwordHash, nickname }) {
   const id = store.nextUserId++;
   const user = { id, username, password_hash: passwordHash, nickname, created_at: new Date().toISOString() };
@@ -220,6 +263,7 @@ module.exports = {
   findUserById,
   findUserByNickname,
   listUsers,
+  listPointRanking,
   insertUser,
   createSession,
   deleteSession,

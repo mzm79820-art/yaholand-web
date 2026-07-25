@@ -139,9 +139,9 @@ button.point-btn:hover { color: #ffe8a3; }
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(9, 1fr);
   gap: 2px;
-  padding: 10px 6px 14px;
+  padding: 10px 4px 14px;
   background: rgba(0,0,0,0.28);
   border-top: 1px solid rgba(255,255,255,0.06);
 }
@@ -150,7 +150,7 @@ button.point-btn:hover { color: #ffe8a3; }
   background: transparent;
   color: rgba(244,255,248,0.55);
   font: inherit;
-  font-size: 0.64rem;
+  font-size: 0.58rem;
   font-weight: 600;
   padding: 10px 0;
   border-radius: 12px;
@@ -447,6 +447,43 @@ button.btn.chip.ghost {
   font-size: 0.9rem;
 }
 .item .meta { color: var(--muted); font-size: 0.8rem; }
+
+.rank-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.rank-row {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.rank-row.me {
+  border-color: rgba(232, 93, 4, 0.55);
+  background: rgba(232, 93, 4, 0.08);
+}
+.rank-pos {
+  font-weight: 800;
+  font-size: 1rem;
+  text-align: center;
+  color: #264653;
+}
+.rank-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.rank-point {
+  font-weight: 800;
+  font-family: "Space Grotesk", sans-serif;
+  color: #e85d04;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
 
 .pill {
   display: inline-block;

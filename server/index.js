@@ -3,7 +3,7 @@ const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const { register, login, destroySession, getUserByToken, authMiddleware } = require("./auth");
-const { getPlayer, savePlayer, listUsers } = require("./db");
+const { getPlayer, savePlayer, listUsers, listPointRanking } = require("./db");
 const { publicState } = require("./game/helpers");
 const { playRps } = require("./game/rps");
 const { playDice, unlockDiceTier } = require("./game/dice");
@@ -24,6 +24,15 @@ const C = require("./game/constants");
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// 단일 프로세스이므로 예외 하나로 전체 서버가 죽지 않도록 방어한다.
+// (Railway는 프로세스가 종료되면 "Deploy Crashed"로 표시하고 재시작한다)
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err?.stack || err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason?.stack || reason);
+});
 
 app.set("trust proxy", 1);
 
@@ -132,13 +141,23 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
   const fn = handlers[name];
   if (!fn) return res.status(404).json({ ok: false, error: "없는 행동입니다." });
 
-  const result = withPlayer(req.user.id, fn, name);
-  if (!result.ok) {
-    return res.status(400).json({ ok: false, error: result.error, code: result.code || null });
+  try {
+    const result = withPlayer(req.user.id, fn, name);
+    if (!result.ok) {
+      return res.status(400).json({ ok: false, error: result.error, code: result.code || null });
+    }
+    let activityText = null;
+    try {
+      activityText = formatActivity(req.user, name, result, body);
+    } catch (e) {
+      console.error("[activity]", name, e?.message || e);
+    }
+    if (activityText) broadcastActivity(activityText);
+    respondState(req, res, { log: result.log || [], meta: result.meta || null });
+  } catch (e) {
+    console.error("[action]", name, e?.stack || e);
+    res.status(500).json({ ok: false, error: "처리 중 오류가 발생했습니다." });
   }
-  const activityText = formatActivity(req.user, name, result, body);
-  if (activityText) broadcastActivity(activityText);
-  respondState(req, res, { log: result.log || [], meta: result.meta || null });
 });
 
 app.post("/api/purchase", authMiddleware, async (req, res) => {
@@ -170,6 +189,16 @@ app.get("/api/users", authMiddleware, (req, res) => {
       };
     });
   res.json({ ok: true, users });
+});
+
+app.get("/api/ranking", authMiddleware, (req, res) => {
+  try {
+    const ranking = listPointRanking(20, req.user.id);
+    res.json({ ok: true, ...ranking });
+  } catch (e) {
+    console.error("[ranking]", e?.message || e);
+    res.status(500).json({ ok: false, error: "랭킹을 불러오지 못했습니다." });
+  }
 });
 
 app.get("*", (req, res) => {

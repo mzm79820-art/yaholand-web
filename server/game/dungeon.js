@@ -56,9 +56,6 @@ function attackDungeon(point, data, num) {
   if (!isDungeonUnlocked(data, dungeon.num)) {
     return { ok: false, error: `${dungeon.name}은(는) 먼저 포인트로 개방해야 합니다.` };
   }
-  if (data.dungeonCount >= C.DAILY_DUNGEON_LIMIT) {
-    return { ok: false, error: `오늘 던전 ${C.DAILY_DUNGEON_LIMIT}회를 모두 사용했습니다.` };
-  }
 
   const power = combatPower(data);
   if (power < dungeon.needPower) {
@@ -68,7 +65,14 @@ function attackDungeon(point, data, num) {
     };
   }
 
+  // 횟수 제한 대신 난이도별 입장료를 매 공격마다 차감한다.
+  const entryFee = dungeon.entryFee || 0;
+  if (point < entryFee) {
+    return { ok: false, error: `입장료가 부족합니다. (필요 ${entryFee}P)`, code: "NO_POINT" };
+  }
+  point -= entryFee;
   data.dungeonCount += 1;
+
   const dmg = Math.max(1, power - dungeon.armor);
   const hpLeft = data.dungeonTowerHp[dungeon.num] ?? dungeon.hp;
   const nextHp = Math.max(0, hpLeft - dmg);
@@ -76,20 +80,20 @@ function attackDungeon(point, data, num) {
 
   const log = [
     `${dungeon.emoji} ${dungeon.name}`,
-    `전투력 ${power} → 피해 ${dmg}`,
+    `입장료 -${entryFee}P · 전투력 ${power} → 피해 ${dmg}`,
     `탑 HP ${hpLeft} → ${nextHp}`
   ];
 
   if (nextHp > 0) {
-    log.push(`오늘 ${data.dungeonCount}/${C.DAILY_DUNGEON_LIMIT}`);
-    return { ok: true, point, data, log };
+    log.push(`잔액 ${point}P`);
+    return { ok: true, point, data, log, meta: { entryFee, dungeonNum: dungeon.num } };
   }
 
   data.dungeonTowerHp[dungeon.num] = dungeon.hp;
   data.dungeonClears = (data.dungeonClears || 0) + 1;
   const reward = randInt(dungeon.reward[0], dungeon.reward[1]);
   point += reward;
-  log.push(`탑 파괴! +${reward}P`);
+  log.push(`탑 파괴! +${reward}P (입장료 -${entryFee}P)`);
 
   const dropRate = C.DUNGEON_ITEM_DROP_RATE[dungeon.rank] || 0.2;
   if (Math.random() < dropRate) {
@@ -103,7 +107,7 @@ function attackDungeon(point, data, num) {
   if (data.dungeonClears >= 40 && data.adventurerRank === "D") data.adventurerRank = "C";
 
   log.push(`모험가 ${data.adventurerRank} · 파괴 ${data.dungeonClears}회 · 잔액 ${point}P`);
-  return { ok: true, point, data, log };
+  return { ok: true, point, data, log, meta: { entryFee, dungeonNum: dungeon.num, cleared: true, reward } };
 }
 
 function equipItem(point, data, bagIndex, slotKey) {

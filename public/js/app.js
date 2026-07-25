@@ -12,7 +12,8 @@ const state = {
   overlay: null,
   chat: [],
   activity: [],
-  online: []
+  online: [],
+  ranking: null
 };
 
 const appEl = document.getElementById("app");
@@ -818,10 +819,10 @@ function openOverlay(kind, meta = null, keepOpen = false) {
         <div class="dungeon-tower">${tower.emoji || "🏯"}</div>
         <div class="dungeon-slash" id="dungeonSlash">⚔️</div>
         <h2>${escapeHtml(tower.name || "던전")}</h2>
-        <p class="muted center">HP ${tower.hpLeft ?? "?"}/${tower.hp ?? "?"} · 필요 전투력 ${tower.needPower || 0}</p>
+        <p class="muted center">HP ${tower.hpLeft ?? "?"}/${tower.hp ?? "?"} · 필요 전투력 ${tower.needPower || 0} · 입장료 ${tower.entryFee || 0}P</p>
       </div>
       <div class="result-panel" id="dungeonLog">공격을 시작하면 전투 모션이 재생됩니다.</div>
-      <button class="btn accent big" id="dungeonAttackBtn" data-dun-num="${tower.num || 1}">⚔️ 공격하기</button>
+      <button class="btn accent big" id="dungeonAttackBtn" data-dun-num="${tower.num || 1}">⚔️ 공격하기 (입장료 ${tower.entryFee || 0}P)</button>
     `;
     }
   }
@@ -1264,6 +1265,71 @@ function renderPlay() {
   `;
 }
 
+function rankMedal(rank) {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return `${rank}`;
+}
+
+function jobEmoji(jobKey) {
+  const jobs = state.game?.catalogs?.jobs || [];
+  const job = jobs.find((j) => j.key === jobKey);
+  return job?.emoji || "🧑";
+}
+
+function renderRank() {
+  const data = state.ranking;
+  if (!data) {
+    return `
+      <div class="panel stack">
+        <h2>포인트 랭킹</h2>
+        <p class="muted">랭킹을 불러오는 중...</p>
+      </div>
+    `;
+  }
+  const rows = (data.top || [])
+    .map((r) => {
+      const medal = rankMedal(r.rank);
+      return `<div class="rank-row ${r.isMe ? "me" : ""}">
+        <div class="rank-pos">${medal}</div>
+        <div class="rank-user">
+          <div class="rank-name">${jobEmoji(r.job)} ${escapeHtml(r.nickname)}${r.isMe ? " <span class=\"pill\">나</span>" : ""}</div>
+          <div class="meta">${escapeHtml(r.adventurerRank || "F")}급</div>
+        </div>
+        <div class="rank-point">${Number(r.point || 0).toLocaleString()}P</div>
+      </div>`;
+    })
+    .join("");
+  let meBox = "";
+  if (data.me && !data.me.inTop) {
+    meBox = `
+      <div class="panel stack">
+        <h3>내 순위</h3>
+        <div class="rank-row me">
+          <div class="rank-pos">${data.me.rank}</div>
+          <div class="rank-user">
+            <div class="rank-name">${jobEmoji(data.me.job)} ${escapeHtml(data.me.nickname)} <span class="pill">나</span></div>
+            <div class="meta">상위 20위 밖 · 전체 ${data.total || 0}명</div>
+          </div>
+          <div class="rank-point">${Number(data.me.point || 0).toLocaleString()}P</div>
+        </div>
+      </div>
+    `;
+  } else if (data.me) {
+    meBox = `<p class="muted center">내 순위 ${data.me.rank}위 · 전체 ${data.total || 0}명</p>`;
+  }
+  return `
+    <div class="panel">
+      <h2>포인트 랭킹</h2>
+      <p class="muted">보유 포인트 기준 · 상위 20위</p>
+    </div>
+    <div class="rank-list">${rows || '<p class="muted center">아직 랭킹 데이터가 없습니다.</p>'}</div>
+    ${meBox}
+    <button class="btn ghost" id="rankRefreshBtn" type="button">새로고침</button>
+  `;
+}
+
 function chatLineHtml(m) {
   if (m.type === "system") {
     return `<div class="chat-sys">${escapeHtml(m.text)}</div>`;
@@ -1459,7 +1525,7 @@ function renderDungeon() {
       <div class="item">
         <div>
           <div>${t.emoji} ${t.name}</div>
-          <div class="meta">HP ${t.hpLeft}/${t.hp} · 필요 전투력 ${t.needPower}</div>
+          <div class="meta">HP ${t.hpLeft}/${t.hp} · 필요 전투력 ${t.needPower} · 입장료 ${t.entryFee || 0}P</div>
         </div>
         <button class="btn" data-dun="${t.num}">공격</button>
       </div>`;
@@ -1467,9 +1533,10 @@ function renderDungeon() {
     .join("");
   return `
     <div class="panel">
-      <h2>던전 <span class="pill">${g.limits.dungeon.used}/${g.limits.dungeon.max}</span></h2>
+      <h2>던전</h2>
       <p>모험가 ${g.dungeon.rank} · 전투력 ${g.dungeon.power} · 파괴 ${g.dungeon.clears}회</p>
-      <p class="muted" style="margin-top:6px">던전2·3은 포인트로 개방해야 입장할 수 있습니다.</p>
+      <p class="muted" style="margin-top:6px">횟수 제한 없이 도전할 수 있고, 공격마다 난이도별 입장료가 듭니다.</p>
+      <p class="muted" style="margin-top:4px">던전2·3은 포인트로 개방해야 입장할 수 있습니다.</p>
       <div class="list" style="margin-top:10px">${towers}</div>
     </div>
     <div class="panel"><p>획득한 장비와 아바타는 하단 <b>가방</b> 탭에서 관리하세요.</p></div>
@@ -1592,6 +1659,22 @@ function renderShop() {
 }
 
 function bindCommon() {
+  const rankRefresh = document.getElementById("rankRefreshBtn");
+  if (rankRefresh) {
+    rankRefresh.onclick = async () => {
+      try {
+        const data = await api("/api/ranking");
+        if (data.ok) {
+          state.ranking = data;
+          render();
+          showToast("랭킹을 갱신했습니다.");
+        }
+      } catch {
+        showToast("랭킹을 불러오지 못했습니다.");
+      }
+    };
+  }
+
   const logout = document.getElementById("logoutBtn");
   if (logout && !logout.dataset.bound) {
     logout.dataset.bound = "1";
@@ -1602,6 +1685,7 @@ function bindCommon() {
       state.game = null;
       state.chat = [];
       state.activity = [];
+      state.ranking = null;
       state.online = [];
       showAuth();
     };
@@ -1796,6 +1880,7 @@ function render() {
   const views = {
     home: renderHome,
     play: renderPlay,
+    rank: renderRank,
     chat: renderChat,
     pet: renderPet,
     job: renderJob,
@@ -1818,6 +1903,15 @@ navEl.querySelectorAll("button").forEach((btn) => {
         if (data.state) state.game = data.state;
       } catch {
         /* ignore */
+      }
+    }
+    if (state.tab === "rank") {
+      render();
+      try {
+        const data = await api("/api/ranking");
+        if (data.ok) state.ranking = data;
+      } catch {
+        showToast("랭킹을 불러오지 못했습니다.");
       }
     }
     render();
