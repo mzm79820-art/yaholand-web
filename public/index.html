@@ -15,7 +15,10 @@
     <header class="top">
       <div class="brand">야호랜드</div>
       <div class="top-right">
-        <button type="button" id="bgmBtn" class="bgm-btn" aria-label="배경음악" title="배경음악">♪</button>
+        <div class="bgm-ctrl">
+          <button type="button" id="bgmBtn" class="bgm-btn" aria-label="배경음악" title="배경음악">♪</button>
+          <button type="button" id="bgmNextBtn" class="bgm-btn" aria-label="다음 곡" title="다음 곡">⏭</button>
+        </div>
         <div id="hud" class="hud hidden">
           <div class="hud-user">
             <span id="nick"></span>
@@ -26,7 +29,7 @@
       </div>
     </header>
 
-    <audio id="bgm" src="/audio/bgm.mp3" loop preload="auto"></audio>
+    <audio id="bgm" preload="none"></audio>
 
     <main id="app" class="app"></main>
 

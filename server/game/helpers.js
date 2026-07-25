@@ -3,6 +3,17 @@ const C = require("./constants");
 const { getSwordView } = require("./sword");
 const { getQuestView, ensureDailyQuests } = require("./quests");
 
+function getDiceUnlockView(data) {
+  if (!data.unlockedDice || typeof data.unlockedDice !== "object") {
+    data.unlockedDice = { beginner: true, intermediate: false, advanced: false };
+  }
+  data.unlockedDice.beginner = true;
+  return C.DICE_TIERS.map((tier) => ({
+    ...tier,
+    unlocked: (tier.unlockCost || 0) <= 0 || !!data.unlockedDice[tier.key]
+  }));
+}
+
 function resetDaily(data, fieldDate, fieldCount, dateKey) {
   if (data[fieldDate] !== dateKey) {
     data[fieldDate] = dateKey;
@@ -125,10 +136,15 @@ function publicState(user, point, data) {
       power: combatPower(data),
       bag: data.dungeonBag || [],
       equips: data.equipSlots || [],
-      towers: C.DUNGEON_LIST.map((d) => ({
-        ...d,
-        hpLeft: data.dungeonTowerHp?.[d.num] ?? d.hp
-      }))
+      towers: C.DUNGEON_LIST.map((d) => {
+        const unlocked =
+          (d.unlockCost || 0) <= 0 || !!(data.unlockedDungeons && data.unlockedDungeons[String(d.num)]);
+        return {
+          ...d,
+          hpLeft: data.dungeonTowerHp?.[d.num] ?? d.hp,
+          unlocked: d.num === 1 ? true : unlocked
+        };
+      })
     },
     avatar: {
       base: job ? job.emoji : "🧑",
@@ -139,6 +155,7 @@ function publicState(user, point, data) {
       })
     },
     sword: getSwordView(data),
+    diceTiers: getDiceUnlockView(data),
     status: {
       wantedBounty: data.wantedBounty || 0,
       cursed: (data.curseUntil || 0) > Date.now(),
@@ -150,6 +167,7 @@ function publicState(user, point, data) {
       dungeons: C.DUNGEON_LIST,
       rpsMaxBet: C.RPS_MAX_BET,
       diceMaxBet: C.DICE_MAX_BET,
+      diceTiers: C.DICE_TIERS,
       petFoodPrice: C.PET_FOOD_PRICE,
       trainCost: C.TRAIN_COST,
       walkCost: C.WALK_COST,

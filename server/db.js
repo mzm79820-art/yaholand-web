@@ -76,6 +76,8 @@ function defaultPlayerData() {
     stealWins: 0,
     arrestWins: 0,
     swordRun: null,
+    unlockedDice: { beginner: true, intermediate: false, advanced: false },
+    unlockedDungeons: { "1": true, "2": false, "3": false },
     dailyQuestDate: "",
     dailyQuests: [],
     dailyQuestBonusClaimed: false,

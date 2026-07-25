@@ -10,6 +10,40 @@ function ensureDungeon(data) {
     data.equipSlots = Object.fromEntries(C.EQUIP_SLOTS.map((slot) => [slot.key, null]));
   }
   if (!data.dungeonTowerHp) data.dungeonTowerHp = {};
+  if (!data.unlockedDungeons || typeof data.unlockedDungeons !== "object") {
+    data.unlockedDungeons = { "1": true, "2": false, "3": false };
+  }
+  data.unlockedDungeons["1"] = true;
+}
+
+function isDungeonUnlocked(data, num) {
+  ensureDungeon(data);
+  const dungeon = C.DUNGEON_LIST.find((d) => d.num === Number(num));
+  if (!dungeon) return false;
+  if ((dungeon.unlockCost || 0) <= 0) return true;
+  return !!data.unlockedDungeons[String(num)];
+}
+
+function unlockDungeon(point, data, num) {
+  ensureDungeon(data);
+  const dungeon = C.DUNGEON_LIST.find((d) => d.num === Number(num));
+  if (!dungeon) return { ok: false, error: "없는 던전입니다." };
+  if ((dungeon.unlockCost || 0) <= 0 || isDungeonUnlocked(data, num)) {
+    return { ok: false, error: "이미 개방된 던전입니다." };
+  }
+  if (point < dungeon.unlockCost) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
+  point -= dungeon.unlockCost;
+  data.unlockedDungeons[String(dungeon.num)] = true;
+  return {
+    ok: true,
+    point,
+    data,
+    log: [
+      `${dungeon.emoji} ${dungeon.name} 개방! (-${dungeon.unlockCost}P)`,
+      `잔액 ${point}P`
+    ],
+    meta: { dungeonNum: dungeon.num, unlockCost: dungeon.unlockCost }
+  };
 }
 
 function attackDungeon(point, data, num) {
@@ -19,6 +53,9 @@ function attackDungeon(point, data, num) {
 
   const dungeon = C.DUNGEON_LIST.find((d) => d.num === Number(num));
   if (!dungeon) return { ok: false, error: "없는 던전입니다." };
+  if (!isDungeonUnlocked(data, dungeon.num)) {
+    return { ok: false, error: `${dungeon.name}은(는) 먼저 포인트로 개방해야 합니다.` };
+  }
   if (data.dungeonCount >= C.DAILY_DUNGEON_LIMIT) {
     return { ok: false, error: `오늘 던전 ${C.DAILY_DUNGEON_LIMIT}회를 모두 사용했습니다.` };
   }
@@ -48,7 +85,6 @@ function attackDungeon(point, data, num) {
     return { ok: true, point, data, log };
   }
 
-  // 파괴 성공 → 리셋 + 보상
   data.dungeonTowerHp[dungeon.num] = dungeon.hp;
   data.dungeonClears = (data.dungeonClears || 0) + 1;
   const reward = randInt(dungeon.reward[0], dungeon.reward[1]);
@@ -63,7 +99,6 @@ function attackDungeon(point, data, num) {
     log.push(`아이템 획득! ${item.emoji} ${item.name}`);
   }
 
-  // 간단 등급 업
   if (data.dungeonClears >= 10 && data.adventurerRank === "F") data.adventurerRank = "D";
   if (data.dungeonClears >= 40 && data.adventurerRank === "D") data.adventurerRank = "C";
 
@@ -150,4 +185,4 @@ function enrichEquips(equips) {
   });
 }
 
-module.exports = { attackDungeon, equipItem, unequipItem, sellItem, enrichItems, enrichEquips };
+module.exports = { attackDungeon, unlockDungeon, isDungeonUnlocked, equipItem, unequipItem, sellItem, enrichItems, enrichEquips };

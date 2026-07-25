@@ -6,9 +6,11 @@ const state = {
   lastLog: "버튼을 눌러 플레이하세요.",
   betRps: 10,
   betDice: 10,
+  diceTier: "beginner",
   bait: "basic",
   overlay: null,
   chat: [],
+  activity: [],
   online: []
 };
 
@@ -20,11 +22,37 @@ const pointEl = document.getElementById("point");
 const overlayEl = document.getElementById("overlay");
 const bgmEl = document.getElementById("bgm");
 const bgmBtn = document.getElementById("bgmBtn");
+const bgmNextBtn = document.getElementById("bgmNextBtn");
 
 const BGM_MUTE_KEY = "yl_bgm_muted";
+const BGM_TRACKS = [
+  { src: "/audio/bgm-8bit.mp3", name: "8비트 EDM" },
+  { src: "/audio/bgm-cat.mp3", name: "바운시 캣" },
+  { src: "/audio/bgm-runway.mp3", name: "패션 런웨이" },
+  { src: "/audio/bgm-retro.mp3", name: "리빈 잇 업" },
+  { src: "/audio/bgm-loop.mp3", name: "EDM 루프" },
+  { src: "/audio/bgm-runway2.mp3", name: "패션 런웨이 II" },
+  { src: "/audio/bgm-bash.mp3", name: "하이스쿨 배시" },
+  { src: "/audio/bgm-promo.mp3", name: "인스파이어링 프로모" },
+  { src: "/audio/bgm-cyberpunk.mp3", name: "사이버펑크" },
+  { src: "/audio/bgm-sports.mp3", name: "EDM 스포츠" }
+];
+
+function shuffled(list) {
+  const arr = list.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 const bgmState = {
   unlocked: false,
-  muted: localStorage.getItem(BGM_MUTE_KEY) === "1"
+  muted: localStorage.getItem(BGM_MUTE_KEY) === "1",
+  order: shuffled(BGM_TRACKS),
+  index: 0,
+  errors: 0
 };
 
 const RPS_HAND = { 가위: "✌️", 바위: "✊", 보: "🖐️" };
@@ -174,7 +202,7 @@ const GAME_TIPS = [
   "상점의 직업 변경권으로 직업을 다시 고를 수 있습니다.",
   "간식은 펫 경험에 도움이 됩니다. 상점과 펫 탭을 번갈아 보세요.",
   "홈 화면의 모험 현황으로 오늘 진행도를 빠르게 점검하세요.",
-  "BGM은 우상단 ♪ 버튼으로 끄고 켤 수 있습니다.",
+  "BGM은 우상단 ♪ 버튼으로 끄고 켤 수 있고, ⏭ 로 다음 곡으로 넘길 수 있습니다.",
   "가위바위보 베팅은 +1/+10/+100 버튼으로 빠르게 조절하세요.",
   "주사위도 베팅 버튼으로 금액을 맞추면 실수가 줄어듭니다.",
   "낚시 도감 수를 늘면 수집 재미가 커집니다.",
@@ -253,21 +281,47 @@ const todayTip = GAME_TIPS[Math.floor(Math.random() * GAME_TIPS.length)];
 
 let chatSocket = null;
 
+function currentTrack() {
+  return bgmState.order[bgmState.index] || BGM_TRACKS[0];
+}
+
 function updateBgmButton() {
   if (!bgmBtn) return;
+  const track = currentTrack();
   bgmBtn.classList.toggle("muted", bgmState.muted);
   bgmBtn.textContent = bgmState.muted ? "🔇" : "♪";
-  bgmBtn.title = bgmState.muted ? "소리 켜기" : "소리 끄기";
+  bgmBtn.title = bgmState.muted ? "소리 켜기" : `소리 끄기 · ${track.name}`;
+  if (bgmNextBtn) bgmNextBtn.title = `다음 곡 (현재: ${track.name})`;
+}
+
+function loadTrack() {
+  if (!bgmEl) return;
+  const track = currentTrack();
+  if (!bgmEl.src.endsWith(track.src)) bgmEl.src = track.src;
+  updateBgmButton();
 }
 
 async function tryPlayBgm() {
   if (!bgmEl || bgmState.muted) return;
+  loadTrack();
   try {
     bgmEl.volume = 0.35;
     await bgmEl.play();
   } catch {
     /* autoplay blocked */
   }
+}
+
+// 한 바퀴 다 돌면 순서를 다시 섞어 같은 흐름이 반복되지 않게 한다.
+function nextTrack() {
+  bgmState.index += 1;
+  if (bgmState.index >= bgmState.order.length) {
+    bgmState.order = shuffled(BGM_TRACKS);
+    bgmState.index = 0;
+  }
+  if (bgmEl) bgmEl.currentTime = 0;
+  loadTrack();
+  tryPlayBgm();
 }
 
 function unlockBgm() {
@@ -288,11 +342,36 @@ function toggleBgm() {
   }
 }
 
+if (bgmEl) {
+  bgmEl.addEventListener("ended", () => {
+    bgmState.errors = 0;
+    nextTrack();
+  });
+  // 파일이 없는 곡은 건너뛰되, 전부 실패하면 재생을 멈춘다.
+  bgmEl.addEventListener("error", () => {
+    if (bgmState.muted || !bgmState.unlocked) return;
+    bgmState.errors += 1;
+    if (bgmState.errors >= BGM_TRACKS.length) return;
+    nextTrack();
+  });
+  bgmEl.addEventListener("playing", () => {
+    bgmState.errors = 0;
+  });
+}
+
 if (bgmBtn) {
   updateBgmButton();
   bgmBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleBgm();
+  });
+}
+
+if (bgmNextBtn) {
+  bgmNextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    bgmState.unlocked = true;
+    nextTrack();
   });
 }
 ["pointerdown", "keydown", "touchstart"].forEach((ev) => {
@@ -356,20 +435,30 @@ function connectChat() {
     }
     if (msg.type === "hello") {
       state.online = msg.online || [];
-      state.chat = msg.recent || [];
+      const recent = msg.recent || [];
+      state.chat = recent.filter((m) => m.type !== "activity");
+      state.activity = recent.filter((m) => m.type === "activity");
       if (state.tab === "chat") render();
       return;
     }
     if (msg.type === "online") {
       state.online = msg.online || [];
-      if (state.tab === "chat") render();
+      if (state.tab === "chat") updateOnlineDom();
       return;
     }
-    if (msg.type === "chat" || msg.type === "system" || msg.type === "activity") {
+    // 새 메시지는 전체 재렌더 없이 해당 목록에만 덧붙인다.
+    // (전체 재렌더 시 채팅 입력창이 새로 생성되어 포커스·입력 내용이 사라짐)
+    if (msg.type === "chat" || msg.type === "system") {
       state.chat.push(msg);
       if (state.chat.length > 120) state.chat.shift();
-      if (state.tab === "chat") render();
+      if (state.tab === "chat") appendChatDom(msg);
       else if (msg.type === "system") showToast(msg.text);
+      return;
+    }
+    if (msg.type === "activity") {
+      state.activity.push(msg);
+      if (state.activity.length > 80) state.activity.shift();
+      if (state.tab === "chat") appendActivityDom(msg);
       return;
     }
     if (msg.type === "error") showToast(msg.error);
@@ -571,20 +660,37 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       </div>
     `;
   } else if (kind === "dice") {
+    const tiers = g.diceTiers || g.catalogs.diceTiers || [];
+    const current = tiers.find((t) => t.key === state.diceTier) || tiers[0] || { key: "beginner", maxBet: 100, name: "초급", unlocked: true };
+    if (!current.unlocked) {
+      const firstOpen = tiers.find((t) => t.unlocked) || tiers[0];
+      state.diceTier = firstOpen?.key || "beginner";
+    }
+    const active = tiers.find((t) => t.key === state.diceTier && t.unlocked) || tiers.find((t) => t.unlocked) || current;
+    state.diceTier = active.key;
+    if (state.betDice > active.maxBet) state.betDice = active.maxBet;
+    const tierBtns = tiers.map((t) => {
+      if (t.unlocked) {
+        return `<button type="button" class="btn chip ${t.key === state.diceTier ? "accent" : "ghost"}" data-dice-tier="${t.key}">${t.emoji} ${t.name}<br/><span class="meta">최대 ${t.maxBet}P</span></button>`;
+      }
+      return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name}<br/><span class="meta">${t.unlockCost}P 개방</span></button>`;
+    }).join("");
     body = `
       <div class="stage-art"><img src="/img/dice-slot.png" alt="슬롯" /></div>
+      <div class="tier-row">${tierBtns}</div>
       <div class="dice-board" id="diceBoard">
         <span class="die" id="die0">🎲</span>
         <span class="die" id="die1">🎲</span>
         <span class="die" id="die2">🎲</span>
       </div>
-      <div class="result-panel" id="diceLog">레버를 당겨 주사위를 굴리세요</div>
+      <div class="result-panel" id="diceLog">${active.emoji} ${active.name} · 최대 ${active.maxBet}P · 레버를 당겨 주세요</div>
       <label class="field">베팅
-        <input id="betDice" type="number" min="1" max="${g.catalogs.diceMaxBet}" value="${state.betDice}" />
+        <input id="betDice" type="number" min="1" max="${active.maxBet}" value="${state.betDice}" />
       </label>
-      ${betControls("betDice", g.catalogs.diceMaxBet)}
+      ${betControls("betDice", active.maxBet)}
       <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</p>
-      <button class="btn accent big" id="diceBtn">🎰 주사위 굴리기</button>
+      <p class="muted center">장기 평균 환급률 약 90% · 반복할수록 평균 손실이 발생합니다.</p>
+      <button class="btn accent big" id="diceBtn">🎰 ${active.name} 주사위 굴리기</button>
     `;
   } else if (kind === "fish") {
     const baitOpts = (g.catalogs.baits || [])
@@ -633,7 +739,18 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     `;
   } else if (kind === "dungeon") {
     const tower = meta?.tower || (g.dungeon.towers || [])[0] || {};
-    body = `
+    if (!tower.unlocked) {
+      body = `
+        <div class="dungeon-stage">
+          <div class="dungeon-tower">🔒</div>
+          <h2>${escapeHtml(tower.name || "던전")}</h2>
+          <p class="muted center">개방 비용 ${tower.unlockCost || 0}P</p>
+        </div>
+        <div class="result-panel" id="dungeonLog">이 던전은 포인트로 개방해야 이용할 수 있습니다.</div>
+        <button class="btn accent big" id="dungeonUnlockBtn" data-dun-num="${tower.num || 2}">🔓 ${tower.unlockCost || 0}P로 개방</button>
+      `;
+    } else {
+      body = `
       <div class="dungeon-stage" id="dungeonStage">
         <div class="dungeon-tower">${tower.emoji || "🏯"}</div>
         <div class="dungeon-slash" id="dungeonSlash">⚔️</div>
@@ -643,6 +760,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       <div class="result-panel" id="dungeonLog">공격을 시작하면 전투 모션이 재생됩니다.</div>
       <button class="btn accent big" id="dungeonAttackBtn" data-dun-num="${tower.num || 1}">⚔️ 공격하기</button>
     `;
+    }
   }
 
   const titles = {
@@ -707,6 +825,26 @@ function bindOverlay(kind, meta) {
 
   if (kind === "dice") {
     if (meta?.dice) applyDiceVisual(meta.dice, false);
+    overlayEl.querySelectorAll("[data-dice-tier]").forEach((btn) => {
+      btn.onclick = () => {
+        state.diceTier = btn.dataset.diceTier;
+        openOverlay("dice", null, true);
+      };
+    });
+    overlayEl.querySelectorAll("[data-dice-unlock]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("dice-unlock", { tier: btn.dataset.diceUnlock });
+          state.diceTier = btn.dataset.diceUnlock;
+          openOverlay("dice", null, true);
+          overlayEl.querySelector("#diceLog").textContent = (data.log || []).join("\n");
+          overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
+          showToast((data.log && data.log[0]) || "주사위 등급 개방!");
+        } catch {
+          /* act에서 안내 */
+        }
+      };
+    });
     overlayEl.querySelector("#diceBtn").onclick = async () => {
       const bet = Number(overlayEl.querySelector("#betDice")?.value || state.betDice);
       state.betDice = bet;
@@ -721,16 +859,15 @@ function bindOverlay(kind, meta) {
         }
       }, 80);
       try {
-        const data = await act("dice", { bet });
+        const data = await act("dice", { bet, tier: state.diceTier });
         await sleep(900);
         clearInterval(spin);
         board?.classList.remove("spinning");
         applyDiceVisual(data.meta.dice, true);
         sfx.diceResult();
+        openOverlay("dice", data.meta, true);
         overlayEl.querySelector("#diceLog").textContent = (data.log || []).join("\n");
         overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
-        overlayEl.querySelector(".muted.center").textContent =
-          `오늘 ${data.state.limits.dice.used}/${data.state.limits.dice.max}`;
       } catch {
         clearInterval(spin);
         board?.classList.remove("spinning");
@@ -809,6 +946,22 @@ function bindOverlay(kind, meta) {
   }
 
   if (kind === "dungeon") {
+    const unlockBtn = overlayEl.querySelector("#dungeonUnlockBtn");
+    if (unlockBtn) {
+      unlockBtn.onclick = async () => {
+        const num = Number(unlockBtn.dataset.dunNum || meta?.tower?.num || 2);
+        try {
+          const data = await act("dungeon-unlock", { num });
+          const tower = (data.state.dungeon.towers || []).find((t) => t.num === num);
+          openOverlay("dungeon", { tower }, true);
+          overlayEl.querySelector("#dungeonLog").textContent = (data.log || []).join("\n");
+          overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
+          showToast((data.log && data.log[0]) || "던전 개방!");
+        } catch {
+          /* act에서 안내 */
+        }
+      };
+    }
     const attackBtn = overlayEl.querySelector("#dungeonAttackBtn");
     if (attackBtn) {
       attackBtn.onclick = async () => {
@@ -983,31 +1136,70 @@ function renderPlay() {
   `;
 }
 
+function chatLineHtml(m) {
+  if (m.type === "system") {
+    return `<div class="chat-sys">${escapeHtml(m.text)}</div>`;
+  }
+  return `<div class="chat-msg"><b>${escapeHtml(m.nickname)}</b> ${escapeHtml(m.text)}</div>`;
+}
+
+function activityLineHtml(m) {
+  return `<div class="chat-activity">${escapeHtml(m.text)}</div>`;
+}
+
+function scrollToBottom(box) {
+  if (box) box.scrollTop = box.scrollHeight;
+}
+
+function appendChatDom(m) {
+  const box = document.getElementById("chatBox");
+  if (!box) return;
+  box.querySelector(".chat-empty")?.remove();
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.insertAdjacentHTML("beforeend", chatLineHtml(m));
+  while (box.children.length > 120) box.removeChild(box.firstChild);
+  if (atBottom) scrollToBottom(box);
+}
+
+function appendActivityDom(m) {
+  const box = document.getElementById("activityBox");
+  if (!box) return;
+  box.querySelector(".chat-empty")?.remove();
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.insertAdjacentHTML("beforeend", activityLineHtml(m));
+  while (box.children.length > 80) box.removeChild(box.firstChild);
+  if (atBottom) scrollToBottom(box);
+}
+
+function updateOnlineDom() {
+  const el = document.getElementById("onlineLine");
+  if (!el) return;
+  const online = state.online.map((u) => u.nickname).join(", ") || "없음";
+  el.textContent = `접속 ${state.online.length}명 · ${online}`;
+}
+
 function renderChat() {
-  const lines = state.chat
-    .map((m) => {
-      if (m.type === "system") {
-        return `<div class="chat-sys">${escapeHtml(m.text)}</div>`;
-      }
-      if (m.type === "activity") {
-        return `<div class="chat-activity">${escapeHtml(m.text)}</div>`;
-      }
-      return `<div class="chat-msg"><b>${escapeHtml(m.nickname)}</b> ${escapeHtml(m.text)}</div>`;
-    })
-    .join("");
+  const chatLines = state.chat.map(chatLineHtml).join("");
+  const activityLines = state.activity.map(activityLineHtml).join("");
   const online = state.online.map((u) => escapeHtml(u.nickname)).join(", ") || "없음";
   return `
     <div class="panel">
       <h2>광장 채팅</h2>
-      <p class="muted">접속 ${state.online.length}명 · ${online}</p>
+      <p class="muted" id="onlineLine">접속 ${state.online.length}명 · ${online}</p>
       <p class="muted" style="margin-top:4px">비속어·정치·종교 관련 표현은 * 로 가려집니다.</p>
-      <p class="muted" style="margin-top:4px">다른 모험가의 놀기·던전·펫·직업·상점 결과도 여기에 표시됩니다.</p>
     </div>
-    <div class="chat-box" id="chatBox">${lines || '<div class="chat-sys">아직 메시지가 없습니다.</div>'}</div>
-    <form id="chatForm" class="chat-form">
-      <input id="chatInput" maxlength="120" placeholder="메시지 입력" autocomplete="off" />
-      <button class="btn accent" type="submit">전송</button>
-    </form>
+    <div class="chat-section">
+      <div class="chat-section-title">💬 채팅</div>
+      <div class="chat-box" id="chatBox">${chatLines || '<div class="chat-sys chat-empty">아직 메시지가 없습니다.</div>'}</div>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" maxlength="120" placeholder="메시지 입력" autocomplete="off" />
+        <button class="btn accent" type="submit">전송</button>
+      </form>
+    </div>
+    <div class="chat-section">
+      <div class="chat-section-title">🎮 실시간 게임 현황</div>
+      <div class="chat-box activity-box" id="activityBox">${activityLines || '<div class="chat-sys chat-empty">아직 활동이 없습니다.</div>'}</div>
+    </div>
   `;
 }
 
@@ -1124,21 +1316,32 @@ function renderJob() {
 function renderDungeon() {
   const g = state.game;
   const towers = g.dungeon.towers
-    .map(
-      (t) => `
+    .map((t) => {
+      if (!t.unlocked) {
+        return `
+      <div class="item">
+        <div>
+          <div>🔒 ${t.emoji} ${t.name}</div>
+          <div class="meta">개방 ${t.unlockCost}P · 필요 전투력 ${t.needPower}</div>
+        </div>
+        <button class="btn accent" data-dun-unlock="${t.num}">개방</button>
+      </div>`;
+      }
+      return `
       <div class="item">
         <div>
           <div>${t.emoji} ${t.name}</div>
           <div class="meta">HP ${t.hpLeft}/${t.hp} · 필요 전투력 ${t.needPower}</div>
         </div>
         <button class="btn" data-dun="${t.num}">공격</button>
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
   return `
     <div class="panel">
       <h2>던전 <span class="pill">${g.limits.dungeon.used}/${g.limits.dungeon.max}</span></h2>
       <p>모험가 ${g.dungeon.rank} · 전투력 ${g.dungeon.power} · 파괴 ${g.dungeon.clears}회</p>
+      <p class="muted" style="margin-top:6px">던전2·3은 포인트로 개방해야 입장할 수 있습니다.</p>
       <div class="list" style="margin-top:10px">${towers}</div>
     </div>
     <div class="panel"><p>획득한 장비와 아바타는 하단 <b>가방</b> 탭에서 관리하세요.</p></div>
@@ -1270,6 +1473,7 @@ function bindCommon() {
       state.user = null;
       state.game = null;
       state.chat = [];
+      state.activity = [];
       state.online = [];
       showAuth();
     };
@@ -1310,8 +1514,8 @@ function bindCommon() {
 
   const chatForm = document.getElementById("chatForm");
   if (chatForm) {
-    const box = document.getElementById("chatBox");
-    if (box) box.scrollTop = box.scrollHeight;
+    scrollToBottom(document.getElementById("chatBox"));
+    scrollToBottom(document.getElementById("activityBox"));
     chatForm.onsubmit = (e) => {
       e.preventDefault();
       const input = document.getElementById("chatInput");
@@ -1371,6 +1575,17 @@ function bindCommon() {
       const tower = (state.game?.dungeon?.towers || []).find((t) => t.num === num);
       if (!tower) return;
       openOverlay("dungeon", { tower });
+    };
+  });
+  document.querySelectorAll("[data-dun-unlock]").forEach((btn) => {
+    btn.onclick = async () => {
+      try {
+        const data = await act("dungeon-unlock", { num: Number(btn.dataset.dunUnlock) });
+        setGame(data);
+        showToast((data.log && data.log[0]) || "던전 개방!");
+      } catch {
+        /* act에서 안내 */
+      }
     };
   });
   document.querySelectorAll("[data-equip]").forEach((btn) => {

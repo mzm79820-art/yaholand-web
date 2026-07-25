@@ -67,6 +67,12 @@ body {
   gap: 10px;
 }
 
+.bgm-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .bgm-btn {
   width: 40px;
   height: 40px;
@@ -215,6 +221,28 @@ button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+.tier-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.tier-row .btn.chip {
+  padding: 10px 6px;
+  line-height: 1.25;
+  font-size: 0.82rem;
+}
+.tier-row .btn.chip .meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.tier-row .btn.chip.accent {
+  background: var(--accent);
+  color: #fff;
 }
 .choice-grid button {
   padding: 16px 8px;
@@ -737,14 +765,28 @@ button.btn.chip.ghost {
 
 button.btn.big { padding: 16px; font-size: 1.05rem; }
 
+.chat-section {
+  margin-bottom: 14px;
+}
+.chat-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffd166;
+  margin: 0 0 6px 2px;
+  letter-spacing: -0.01em;
+}
 .chat-box {
   background: #10241c;
   color: #d8f3dc;
   border-radius: 14px;
   padding: 12px;
-  height: 360px;
+  height: 300px;
   overflow: auto;
   margin-bottom: 10px;
+}
+.activity-box {
+  height: 220px;
+  background: #0d1f18;
 }
 .chat-msg { margin-bottom: 8px; font-size: 0.9rem; line-height: 1.4; }
 .chat-msg b { color: #ffd166; margin-right: 6px; }

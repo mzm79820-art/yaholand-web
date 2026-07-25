@@ -24,9 +24,14 @@ function formatActivity(user, action, result, body = {}) {
     case "dice": {
       const faces = meta.faces || (meta.dice || []).join("-");
       const net = meta.net;
+      const tierName = meta.tierName ? `${meta.tierName} ` : "";
       const netText = net == null ? "" : net >= 0 ? ` · +${net}P` : ` · ${net}P`;
-      return `🎲 ${n}님 주사위 ${faces}${netText}`;
+      return `🎲 ${n}님 ${tierName}주사위 ${faces}${netText}`;
     }
+    case "dice-unlock":
+      return `🔓 ${n}님 주사위 ${meta.tier || ""} 등급을 개방했습니다`;
+    case "dungeon-unlock":
+      return `🔓 ${n}님 던전${meta.dungeonNum || ""}을(를) 개방했습니다`;
     case "fish": {
       const fish = meta.fish;
       if (fish) return `🎣 ${n}님 ${fish.emoji} ${fish.name} 낚시 성공! (+${meta.sell || 0}P)`;

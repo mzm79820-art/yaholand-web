@@ -10,14 +10,22 @@ const RPS_MAX_BET = 100; // MVP: 과도한 올인 방지
 const DAILY_DICE_LIMIT = 0; // 0 = 무제한
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const DICE_FEE_RATE = 0.01;
-const SLOT_PAYOUT_TRIPLE6 = 18;
-const SLOT_PAYOUT_TRIPLE = 8;
-const SLOT_PAYOUT_PAIR = 1.8;
-const SLOT_PAYOUT_NEAR = 1.0;
-const SLOT_PAYOUT_LOW = 0.4;
+// 공정한 3D6 기준 장기 환급률 91.53% (1% 수수료 적용 시 최대 90.62%).
+// 베팅액이 작아 수수료가 0P로 내림 처리되어도 기대값은 항상 음수다.
+const SLOT_PAYOUT_TRIPLE6 = 15;
+const SLOT_PAYOUT_TRIPLE = 6;
+const SLOT_PAYOUT_PAIR = 1.25;
+const SLOT_PAYOUT_NEAR = 0.8;
+const SLOT_PAYOUT_LOW = 0.25;
+const SLOT_PAYOUT_STRAIGHT = 1.0;
 const SLOT_NEAR_SUM = 13;
 const SLOT_LOW_SUM = 10;
-const DICE_MAX_BET = 100;
+const DICE_TIERS = [
+  { key: "beginner", name: "초급", emoji: "🎲", maxBet: 100, unlockCost: 0 },
+  { key: "intermediate", name: "중급", emoji: "🎰", maxBet: 500, unlockCost: 300 },
+  { key: "advanced", name: "고급", emoji: "💎", maxBet: 1000, unlockCost: 800 }
+];
+const DICE_MAX_BET = 1000; // 고급 상한 (호환용)
 
 const DAILY_FISH_LIMIT = 0; // 0 = 무제한
 const FISH_BAITS = [
@@ -147,9 +155,9 @@ const DUNGEON_ITEMS = [
 
 // MVP: 보상·필요 전투력은 웹 초반에 맞게 축소
 const DUNGEON_LIST = [
-  { num: 1, rank: "F", emoji: "🏯", name: "던전1 · 초급 수호탑", hp: 500, armor: 5, reward: [20, 60], exp: 8, needPower: 50 },
-  { num: 2, rank: "D", emoji: "🏯", name: "던전2 · 견습 수호탑", hp: 2500, armor: 30, reward: [50, 120], exp: 20, needPower: 400 },
-  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000 }
+  { num: 1, rank: "F", emoji: "🏯", name: "던전1 · 초급 수호탑", hp: 500, armor: 5, reward: [20, 60], exp: 8, needPower: 50, unlockCost: 0 },
+  { num: 2, rank: "D", emoji: "🏯", name: "던전2 · 견습 수호탑", hp: 2500, armor: 30, reward: [50, 120], exp: 20, needPower: 400, unlockCost: 400 },
+  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000, unlockCost: 1000 }
 ];
 
 const DUNGEON_ITEM_DROP_RATE = { F: 0.4, D: 0.32, C: 0.26 };
@@ -209,8 +217,10 @@ module.exports = {
   SLOT_PAYOUT_PAIR,
   SLOT_PAYOUT_NEAR,
   SLOT_PAYOUT_LOW,
+  SLOT_PAYOUT_STRAIGHT,
   SLOT_NEAR_SUM,
   SLOT_LOW_SUM,
+  DICE_TIERS,
   DICE_MAX_BET,
   DAILY_FISH_LIMIT,
   FISH_BAITS,
