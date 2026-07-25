@@ -675,45 +675,35 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     if (state.betDice > active.maxBet) state.betDice = active.maxBet;
     const tierBtns = tiers.map((t) => {
       if (t.unlocked) {
-        return `<button type="button" class="btn chip ${t.key === state.diceTier ? "accent" : "ghost"}" data-dice-tier="${t.key}">${t.emoji} ${t.name}<br/><span class="meta">최대 ${t.maxBet}P</span></button>`;
+        return `<button type="button" class="btn chip ${t.key === state.diceTier ? "accent" : "ghost"}" data-dice-tier="${t.key}">${t.emoji} ${t.name} <span class="meta">${t.maxBet}P</span></button>`;
       }
-      return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name}<br/><span class="meta">${t.unlockCost}P 개방</span></button>`;
+      return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name} <span class="meta">${t.unlockCost}P</span></button>`;
     }).join("");
     const waveInfo = g.diceWave || { avgRtp: 99, waves: [], last: null };
     const last = waveInfo.last;
     const biasClass = last?.bias === "win" ? "wave-win" : last?.bias === "lose" ? "wave-lose" : "wave-neutral";
     const lastBlock = last
-      ? `<div class="dice-wave ${biasClass}">
-           <div class="dice-wave-main">${last.emoji} 직전 운세 · ${last.name} (×${last.scale})</div>
-           <div class="dice-wave-sub">${last.hint || ""} · 예상환급 약 ${last.expectedRtp}%</div>
-         </div>`
-      : `<div class="dice-wave wave-neutral">
-           <div class="dice-wave-main">🎲 운세는 굴리는 순간 결정됩니다</div>
-           <div class="dice-wave-sub">한파~대박 중 하나가 바로 적용 · 장기 평균 약 ${waveInfo.avgRtp || 99}%</div>
-         </div>`;
-    const waveRows = (waveInfo.waves || [])
-      .map((w) => `<div class="item"><span>${w.emoji} ${w.name}</span><span class="meta">×${w.scale} · ${w.chance}%</span></div>`)
+      ? `<div class="dice-wave compact ${biasClass}">${last.emoji} ${last.name} ×${last.scale} · 환급 ${last.expectedRtp}%</div>`
+      : `<div class="dice-wave compact wave-neutral">🎲 굴릴 때마다 운세 적용 · 평균 ${waveInfo.avgRtp || 99}%</div>`;
+    const waveChips = (waveInfo.waves || [])
+      .map((w) => `<span class="wave-chip" title="${w.hint || ""}">${w.emoji}${w.name} ${w.chance}%</span>`)
       .join("");
     body = `
-      <div class="stage-art"><img src="/img/dice-slot.png" alt="슬롯" /></div>
-      <div class="tier-row">${tierBtns}</div>
-      ${lastBlock}
-      <div class="dice-board" id="diceBoard">
-        <span class="die" id="die0">🎲</span>
-        <span class="die" id="die1">🎲</span>
-        <span class="die" id="die2">🎲</span>
-      </div>
-      <div class="result-panel" id="diceLog">${active.emoji} ${active.name} · 최대 ${active.maxBet}P · 레버를 당겨 주세요</div>
-      <label class="field">베팅
-        <input id="betDice" type="number" min="1" max="${active.maxBet}" value="${state.betDice}" />
-      </label>
-      ${betControls("betDice", active.maxBet)}
-      <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</p>
-      <button class="btn accent big" id="diceBtn">🎰 ${active.name} 주사위 굴리기</button>
-      <div class="panel stack">
-        <h3>운세 확률</h3>
-        <p class="muted">매 회 새로 뽑혀 배당에 바로 적용됩니다.</p>
-        ${waveRows}
+      <div class="dice-compact">
+        <div class="tier-row compact">${tierBtns}</div>
+        ${lastBlock}
+        <div class="wave-chip-row">${waveChips}</div>
+        <div class="dice-board" id="diceBoard">
+          <span class="die" id="die0">🎲</span>
+          <span class="die" id="die1">🎲</span>
+          <span class="die" id="die2">🎲</span>
+        </div>
+        <div class="result-panel compact" id="diceLog">${active.emoji} ${active.name} · 최대 ${active.maxBet}P</div>
+        <label class="field compact">베팅
+          <input id="betDice" type="number" min="1" max="${active.maxBet}" value="${state.betDice}" />
+        </label>
+        ${betControls("betDice", active.maxBet)}
+        <button class="btn accent big" id="diceBtn">🎰 ${active.name} 굴리기 · 오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</button>
       </div>
     `;
   } else if (kind === "fish") {

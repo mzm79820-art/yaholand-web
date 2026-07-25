@@ -168,13 +168,9 @@ function playDice(point, data, bet, tierKey = "beginner") {
     point,
     data,
     log: [
-      `${tier.emoji} ${tier.name} · ${faces}  (${dice.join("-")})`,
-      `${wave.emoji} 이번 운세 ${wave.name} (×${wave.scale}) · 예상환급 ${wave.expectedRtp}%`,
-      `${label} ×${mult}${base !== mult ? ` (기본 ${base})` : ""}`,
-      `베팅 ${bet}P · 수수료 ${fee}P · 판돈 ${stake}P`,
-      ...(cursed && win > 0 ? [`🕯️ 불운 저주: 당첨금 ${Math.round((1 - curseMult) * 100)}% 감소`] : []),
-      `당첨 ${win}P · ${net >= 0 ? `순이익 +${net}P` : `순손실 ${net}P`}`,
-      `오늘 ${data.diceCount}/${C.DAILY_DICE_LIMIT || "∞"} · 잔액 ${point}P`
+      `${tier.emoji} ${tier.name} · ${faces} · ${wave.emoji}${wave.name}×${wave.scale}`,
+      `${label} ×${mult} · 당첨 ${win}P · ${net >= 0 ? `+${net}P` : `${net}P`}${cursed && win > 0 ? " · 🕯️저주" : ""}`,
+      `베팅 ${bet}P(수수료 ${fee}P) · 잔액 ${point}P`
     ],
     meta: {
       dice,

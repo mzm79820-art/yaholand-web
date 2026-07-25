@@ -244,6 +244,99 @@ button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--accent);
   color: #fff;
 }
+.dice-compact {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.dice-compact .tier-row.compact {
+  margin: 0;
+  gap: 4px;
+}
+.dice-compact .tier-row.compact .btn.chip {
+  padding: 8px 4px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+.dice-compact .tier-row.compact .btn.chip .meta {
+  display: inline;
+  margin: 0;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+.dice-wave.compact {
+  padding: 6px 10px;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 10px;
+}
+.wave-chip-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
+.wave-chip {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 4px 2px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(244,255,248,0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dice-compact .dice-board {
+  padding: 10px 8px;
+  gap: 10px;
+  border-radius: 12px;
+}
+.dice-compact .die {
+  font-size: 2.2rem;
+}
+.dice-compact .result-panel.compact {
+  min-height: 0;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  border-radius: 10px;
+}
+.dice-compact .field.compact {
+  margin: 0;
+  gap: 4px;
+  font-size: 0.78rem;
+}
+.dice-compact .field.compact input {
+  padding: 10px 12px;
+}
+.dice-compact .bet-row {
+  gap: 4px;
+}
+.dice-compact .bet-row .btn.chip {
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+.dice-compact .btn.big {
+  padding: 12px;
+  font-size: 0.95rem;
+  margin-top: 2px;
+}
+.sheet-body:has(.dice-compact) {
+  padding: 10px 12px 12px;
+  overflow: hidden;
+}
+@media (max-height: 720px) {
+  .dice-compact .dice-board { padding: 8px; }
+  .dice-compact .die { font-size: 1.9rem; }
+  .dice-compact .btn.big { padding: 10px; }
+  .wave-chip { font-size: 0.58rem; padding: 3px 1px; }
+}
 .dice-wave {
   border-radius: 12px;
   padding: 10px 12px;
