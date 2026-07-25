@@ -11,7 +11,6 @@ const state = {
   bait: "basic",
   overlay: null,
   chat: [],
-  activity: [],
   online: [],
   ranking: null
 };
@@ -179,7 +178,7 @@ const sfx = {
 const GAME_TIPS = [
   "가위바위보는 하루 20회까지입니다. 큰 금액은 연승이 쌓일 때 올려보세요.",
   "포인트가 부족하면 우상단 포인트를 눌러 구매 페이지로 이동할 수 있습니다.",
-  "주사위는 굴릴 때마다 운세가 새로 적용됩니다. 장기 평균 환급률은 약 99%입니다.",
+  "주사위는 판마다 이득 또는 손실이 납니다. 99%는 패배 확률이 아니라 장기 평균 반환율입니다.",
   "행운당첨은 매일 저녁 9시에 추첨됩니다. 구매 수수료 10%는 상금풀에 들어가지 않습니다.",
   "낚시 미끼는 상점에서 미리 사두면 연속으로 낚기 편합니다.",
   "채굴은 쿨타임 없이 무제한입니다. 시간대 배율이 붙을 때 효율이 좋아집니다.",
@@ -229,7 +228,7 @@ const GAME_TIPS = [
   "모바일에서도 PC와 같은 화면으로 플레이됩니다.",
   "포인트 구매는 계좌이체 후 확인되면 지급됩니다.",
   "구매 요청 시 입금자명을 정확히 적어 주세요.",
-  "구매 금액은 1원 = 1P 기준으로 계산됩니다.",
+  "구매 금액은 1원 = 100P 기준으로 계산됩니다. 최소 100원부터 가능합니다.",
   "채팅에서 닉네임을 확인하고 스킬 대상을 입력하세요.",
   "자기 자신에게는 스틸·체포·저주를 쓸 수 없습니다.",
   "수배 현상금이 쌓이면 경찰의 표적이 됩니다.",
@@ -438,9 +437,7 @@ function connectChat() {
     }
     if (msg.type === "hello") {
       state.online = msg.online || [];
-      const recent = msg.recent || [];
-      state.chat = recent.filter((m) => m.type !== "activity");
-      state.activity = recent.filter((m) => m.type === "activity");
+      state.chat = (msg.recent || []).filter((m) => m.type !== "activity");
       if (state.tab === "chat") render();
       return;
     }
@@ -449,7 +446,7 @@ function connectChat() {
       if (state.tab === "chat") updateOnlineDom();
       return;
     }
-    // 새 메시지는 전체 재렌더 없이 해당 목록에만 덧붙인다.
+    // 새 메시지는 전체 재렌더 없이 채팅 목록에만 덧붙인다.
     // (전체 재렌더 시 채팅 입력창이 새로 생성되어 포커스·입력 내용이 사라짐)
     if (msg.type === "chat" || msg.type === "system") {
       state.chat.push(msg);
@@ -458,12 +455,7 @@ function connectChat() {
       else if (msg.type === "system") showToast(msg.text);
       return;
     }
-    if (msg.type === "activity") {
-      state.activity.push(msg);
-      if (state.activity.length > 80) state.activity.shift();
-      if (state.tab === "chat") appendActivityDom(msg);
-      return;
-    }
+    if (msg.type === "activity") return;
     if (msg.type === "error") showToast(msg.error);
   };
   chatSocket.onclose = () => {
@@ -683,9 +675,10 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     const waveInfo = g.diceWave || { avgRtp: 99, waves: [], last: null };
     const last = waveInfo.last;
     const biasClass = last?.bias === "win" ? "wave-win" : last?.bias === "lose" ? "wave-lose" : "wave-neutral";
+    const biasText = last?.bias === "win" ? "이득에 유리" : last?.bias === "lose" ? "손실에 불리" : "중립";
     const lastBlock = last
-      ? `<div class="dice-wave compact ${biasClass}">${last.emoji} ${last.name} ×${last.scale} · 환급 ${last.expectedRtp}%</div>`
-      : `<div class="dice-wave compact wave-neutral">🎲 굴릴 때마다 운세 적용 · 평균 ${waveInfo.avgRtp || 99}%</div>`;
+      ? `<div class="dice-wave compact ${biasClass}">${last.emoji} 직전 운세: ${last.name} · ${biasText} · 100P당 평균 ${last.expectedRtp}P 반환</div>`
+      : `<div class="dice-wave compact wave-neutral">🎲 매 판 이득·손실 가능 · 장기 평균 100P당 ${waveInfo.avgRtp || 99}P 반환</div>`;
     const waveChips = (waveInfo.waves || [])
       .map((w) => `<span class="wave-chip" title="${w.hint || ""}">${w.emoji}${w.name} ${w.chance}%</span>`)
       .join("");
@@ -1337,10 +1330,6 @@ function chatLineHtml(m) {
   return `<div class="chat-msg"><b>${escapeHtml(m.nickname)}</b> ${escapeHtml(m.text)}</div>`;
 }
 
-function activityLineHtml(m) {
-  return `<div class="chat-activity">${escapeHtml(m.text)}</div>`;
-}
-
 function scrollToBottom(box) {
   if (box) box.scrollTop = box.scrollHeight;
 }
@@ -1355,16 +1344,6 @@ function appendChatDom(m) {
   if (atBottom) scrollToBottom(box);
 }
 
-function appendActivityDom(m) {
-  const box = document.getElementById("activityBox");
-  if (!box) return;
-  box.querySelector(".chat-empty")?.remove();
-  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-  box.insertAdjacentHTML("beforeend", activityLineHtml(m));
-  while (box.children.length > 80) box.removeChild(box.firstChild);
-  if (atBottom) scrollToBottom(box);
-}
-
 function updateOnlineDom() {
   const el = document.getElementById("onlineLine");
   if (!el) return;
@@ -1374,7 +1353,6 @@ function updateOnlineDom() {
 
 function renderChat() {
   const chatLines = state.chat.map(chatLineHtml).join("");
-  const activityLines = state.activity.map(activityLineHtml).join("");
   const online = state.online.map((u) => escapeHtml(u.nickname)).join(", ") || "없음";
   return `
     <div class="panel">
@@ -1383,16 +1361,11 @@ function renderChat() {
       <p class="muted" style="margin-top:4px">비속어·정치·종교 관련 표현은 * 로 가려집니다.</p>
     </div>
     <div class="chat-section">
-      <div class="chat-section-title">💬 채팅</div>
       <div class="chat-box" id="chatBox">${chatLines || '<div class="chat-sys chat-empty">아직 메시지가 없습니다.</div>'}</div>
       <form id="chatForm" class="chat-form">
         <input id="chatInput" maxlength="120" placeholder="메시지 입력" autocomplete="off" />
         <button class="btn accent" type="submit">전송</button>
       </form>
-    </div>
-    <div class="chat-section">
-      <div class="chat-section-title">🎮 실시간 게임 현황</div>
-      <div class="chat-box activity-box" id="activityBox">${activityLines || '<div class="chat-sys chat-empty">아직 활동이 없습니다.</div>'}</div>
     </div>
   `;
 }
@@ -1587,13 +1560,15 @@ function renderBag() {
 function renderPurchase() {
   const g = state.game;
   const bank = g.catalogs.bank || {};
+  const rate = bank.wonPerPoint || 100;
+  const minWon = bank.minPurchaseWon || 100;
   return `
     <div class="panel stack" id="purchasePanel">
       <div class="row" style="align-items:center">
         <button class="btn ghost" id="purchaseBackBtn" style="flex:0">← 뒤로</button>
         <h2 style="flex:1;margin:0">포인트 구매</h2>
       </div>
-      <p>입금 확인 후 GM이 포인트를 지급합니다. (1원 = ${bank.wonPerPoint || 1}P)</p>
+      <p>입금 확인 후 GM이 포인트를 지급합니다. (1원 = ${rate}P · 최소 ${minWon}원)</p>
       <div class="bank-box">
         <div><b>은행</b> ${escapeHtml(bank.bank || "농협")}</div>
         <div><b>예금주</b> ${escapeHtml(bank.holder || "")}</div>
@@ -1604,11 +1579,16 @@ function renderPurchase() {
         <input id="buyDepositor" maxlength="20" placeholder="통장 이름" />
       </label>
       <label class="field">입금 금액 (원)
-        <input id="buyAmount" type="number" min="1000" step="1000" placeholder="예: 10000" />
+        <input id="buyAmount" type="number" min="${minWon}" step="100" placeholder="예: 1000" />
       </label>
+      <div class="row bet-controls" id="buyAmountQuick">
+        <button type="button" class="btn chip ghost" data-buy-won="100">100원</button>
+        <button type="button" class="btn chip ghost" data-buy-won="1000">1,000원</button>
+        <button type="button" class="btn chip ghost" data-buy-won="10000">10,000원</button>
+      </div>
       <p class="muted" id="buyPreview">예상 포인트: -</p>
-      <label class="field">메모 (선택)
-        <input id="buyMemo" maxlength="100" placeholder="남길 말" />
+      <label class="field">연락처 (또는 이메일 주소)
+        <input id="buyContact" maxlength="100" placeholder="휴대폰 또는 이메일" />
       </label>
       <button class="btn accent" id="buyRequestBtn">구매 요청하기</button>
       <div class="err" id="buyErr"></div>
@@ -1684,7 +1664,6 @@ function bindCommon() {
       state.user = null;
       state.game = null;
       state.chat = [];
-      state.activity = [];
       state.ranking = null;
       state.online = [];
       showAuth();
@@ -1727,7 +1706,6 @@ function bindCommon() {
   const chatForm = document.getElementById("chatForm");
   if (chatForm) {
     scrollToBottom(document.getElementById("chatBox"));
-    scrollToBottom(document.getElementById("activityBox"));
     chatForm.onsubmit = (e) => {
       e.preventDefault();
       const input = document.getElementById("chatInput");
@@ -1834,13 +1812,24 @@ function bindCommon() {
 
   const buyAmount = document.getElementById("buyAmount");
   const buyPreview = document.getElementById("buyPreview");
-  const rate = state.game?.catalogs?.bank?.wonPerPoint || 1;
+  const rate = state.game?.catalogs?.bank?.wonPerPoint || 100;
+  const updateBuyPreview = () => {
+    if (!buyPreview) return;
+    const won = Math.floor(Number(buyAmount?.value) || 0);
+    buyPreview.textContent = won > 0
+      ? `예상 포인트: ${Math.floor(won * rate).toLocaleString()}P`
+      : "예상 포인트: -";
+  };
   if (buyAmount && buyPreview) {
-    buyAmount.oninput = () => {
-      const won = Math.floor(Number(buyAmount.value) || 0);
-      buyPreview.textContent = won > 0 ? `예상 포인트: ${Math.floor(won / rate).toLocaleString()}P` : "예상 포인트: -";
-    };
+    buyAmount.oninput = updateBuyPreview;
   }
+  document.querySelectorAll("[data-buy-won]").forEach((btn) => {
+    btn.onclick = () => {
+      if (!buyAmount) return;
+      buyAmount.value = btn.getAttribute("data-buy-won");
+      updateBuyPreview();
+    };
+  });
   const buyRequestBtn = document.getElementById("buyRequestBtn");
   if (buyRequestBtn) {
     buyRequestBtn.onclick = async () => {
@@ -1852,7 +1841,7 @@ function bindCommon() {
           body: JSON.stringify({
             depositor: document.getElementById("buyDepositor")?.value || "",
             amountWon: Number(document.getElementById("buyAmount")?.value || 0),
-            memo: document.getElementById("buyMemo")?.value || ""
+            contact: document.getElementById("buyContact")?.value || ""
           })
         });
         showToast("구매 요청이 접수되었습니다.");

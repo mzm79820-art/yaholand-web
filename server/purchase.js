@@ -23,17 +23,22 @@ function isGm(userId) {
 async function createPurchaseRequest(user, body) {
   const amountWon = Math.floor(Number(body.amountWon));
   const depositor = String(body.depositor || "").trim();
-  const memo = String(body.memo || "").trim().slice(0, 100);
+  const contact = String(body.contact || body.memo || "").trim().slice(0, 100);
+  const minWon = C.BANK.minPurchaseWon || 100;
   if (!depositor || depositor.length < 2) {
     return { ok: false, error: "입금자명을 입력하세요." };
   }
-  if (!amountWon || amountWon < 1000) {
-    return { ok: false, error: "최소 구매 금액은 1,000원입니다." };
+  if (!contact || contact.length < 3) {
+    return { ok: false, error: "연락처 또는 이메일 주소를 입력하세요." };
+  }
+  if (!amountWon || amountWon < minWon) {
+    return { ok: false, error: `최소 구매 금액은 ${minWon.toLocaleString()}원입니다.` };
   }
   if (amountWon > 10000000) {
     return { ok: false, error: "한 번에 1,000만원까지 요청 가능합니다." };
   }
-  const points = Math.floor(amountWon / (C.BANK.wonPerPoint || 1));
+  const rate = C.BANK.wonPerPoint || 100;
+  const points = Math.floor(amountWon * rate);
   const req = addPurchaseRequest({
     userId: user.id,
     username: user.username,
@@ -41,7 +46,8 @@ async function createPurchaseRequest(user, body) {
     depositor,
     amountWon,
     points,
-    memo,
+    contact,
+    memo: contact, // 호환용
     status: "pending",
     createdAt: new Date().toISOString()
   });

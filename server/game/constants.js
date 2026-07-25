@@ -195,7 +195,8 @@ const BANK = {
   holder: "김영우",
   account: "737038-56-021882",
   notifyEmail: "mzm79820@gmail.com",
-  wonPerPoint: 1 // 1원 = 1P
+  wonPerPoint: 100, // 1원 = 100P
+  minPurchaseWon: 100
 };
 
 const JOB_SKILLS = {

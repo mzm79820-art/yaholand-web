@@ -17,7 +17,7 @@ async function sendPurchaseMail(req) {
     `요청 포인트: ${req.points.toLocaleString()}P\n` +
     `계좌: ${C.BANK.bank} ${C.BANK.holder} ${C.BANK.account}\n` +
     `요청 시각: ${req.createdAt}\n` +
-    `메모: ${req.memo || "-"}\n\n` +
+    `연락처: ${req.contact || req.memo || "-"}\n\n` +
     `입금 확인 후 채팅에서 GM 명령으로 지급하세요.\n` +
     `/gm 로그인 <비밀번호>\n` +
     `/gm 지급 ${req.nickname} ${req.points}\n`;

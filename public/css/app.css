@@ -955,13 +955,9 @@ button.btn.big { padding: 16px; font-size: 1.05rem; }
   color: #d8f3dc;
   border-radius: 14px;
   padding: 12px;
-  height: 300px;
+  height: 420px;
   overflow: auto;
   margin-bottom: 10px;
-}
-.activity-box {
-  height: 220px;
-  background: #0d1f18;
 }
 .chat-msg { margin-bottom: 8px; font-size: 0.9rem; line-height: 1.4; }
 .chat-msg b { color: #ffd166; margin-right: 6px; }
@@ -970,16 +966,6 @@ button.btn.big { padding: 16px; font-size: 1.05rem; }
   color: rgba(216,243,220,0.6);
   font-size: 0.8rem;
   margin: 10px 0;
-}
-.chat-activity {
-  color: #a8dadc;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  margin: 6px 0;
-  padding: 6px 8px;
-  border-left: 2px solid rgba(168,218,220,0.45);
-  background: rgba(168,218,220,0.08);
-  border-radius: 0 8px 8px 0;
 }
 .chat-form {
   display: grid;
