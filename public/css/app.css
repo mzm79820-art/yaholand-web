@@ -50,7 +50,7 @@ body {
   color: #f4fff8;
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
 }
 
@@ -59,6 +59,28 @@ body {
   font-weight: 700;
   font-size: 1.45rem;
   letter-spacing: -0.03em;
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bgm-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.22);
+  color: #ffd166;
+  font-size: 1.05rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.bgm-btn.muted {
+  color: rgba(244,255,248,0.45);
+  text-decoration: line-through;
 }
 
 .hud {

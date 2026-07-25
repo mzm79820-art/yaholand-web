@@ -14,11 +14,16 @@
   <div class="phone">
     <header class="top">
       <div class="brand">야호랜드</div>
-      <div id="hud" class="hud hidden">
-        <span id="nick"></span>
-        <span id="point" class="point"></span>
+      <div class="top-right">
+        <button type="button" id="bgmBtn" class="bgm-btn" aria-label="배경음악" title="배경음악">♪</button>
+        <div id="hud" class="hud hidden">
+          <span id="nick"></span>
+          <span id="point" class="point"></span>
+        </div>
       </div>
     </header>
+
+    <audio id="bgm" src="/audio/bgm.mp3" loop preload="auto"></audio>
 
     <main id="app" class="app"></main>
 

@@ -15,6 +15,16 @@ const C = require("./game/constants");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway 등 프록시 뒤에서 HTTPS 판별
+app.set("trust proxy", 1);
+
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === "production" && req.headers["x-forwarded-proto"] === "http") {
+    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -23,6 +33,7 @@ function setSessionCookie(res, token) {
   res.cookie("yl_session", token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     maxAge: 14 * 24 * 60 * 60 * 1000
   });
 }

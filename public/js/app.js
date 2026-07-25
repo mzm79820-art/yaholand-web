@@ -14,6 +14,62 @@ const navEl = document.getElementById("nav");
 const hudEl = document.getElementById("hud");
 const nickEl = document.getElementById("nick");
 const pointEl = document.getElementById("point");
+const bgmEl = document.getElementById("bgm");
+const bgmBtn = document.getElementById("bgmBtn");
+
+const BGM_MUTE_KEY = "yl_bgm_muted";
+const bgmState = {
+  unlocked: false,
+  muted: localStorage.getItem(BGM_MUTE_KEY) === "1"
+};
+
+function updateBgmButton() {
+  if (!bgmBtn) return;
+  bgmBtn.classList.toggle("muted", bgmState.muted);
+  bgmBtn.textContent = bgmState.muted ? "♪̸" : "♪";
+  bgmBtn.title = bgmState.muted ? "BGM 켜기" : "BGM 끄기";
+}
+
+async function tryPlayBgm() {
+  if (!bgmEl || bgmState.muted) return;
+  try {
+    bgmEl.volume = 0.35;
+    await bgmEl.play();
+  } catch {
+    // 브라우저가 사용자 제스처 전 재생을 막을 수 있음
+  }
+}
+
+function unlockBgm() {
+  if (bgmState.unlocked) return;
+  bgmState.unlocked = true;
+  tryPlayBgm();
+}
+
+function toggleBgm() {
+  bgmState.muted = !bgmState.muted;
+  localStorage.setItem(BGM_MUTE_KEY, bgmState.muted ? "1" : "0");
+  updateBgmButton();
+  if (bgmState.muted) {
+    bgmEl?.pause();
+  } else {
+    bgmState.unlocked = true;
+    tryPlayBgm();
+  }
+}
+
+if (bgmBtn) {
+  updateBgmButton();
+  bgmBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleBgm();
+  });
+}
+
+// 첫 터치/클릭 후부터 BGM 재생 (모바일·브라우저 정책)
+["pointerdown", "keydown", "touchstart"].forEach((ev) => {
+  document.addEventListener(ev, unlockBgm, { once: true, passive: true });
+});
 
 async function api(url, opts = {}) {
   const res = await fetch(url, {
