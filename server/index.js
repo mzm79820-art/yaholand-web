@@ -15,7 +15,8 @@ const { useJobSkill } = require("./game/jobSkills");
 const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
 const { mine } = require("./game/mine");
 const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
-const { attachChat } = require("./chat");
+const { attachChat, broadcastActivity } = require("./chat");
+const { formatActivity } = require("./activityFeed");
 const { createPurchaseRequest } = require("./purchase");
 const C = require("./game/constants");
 
@@ -131,6 +132,8 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
   if (!result.ok) {
     return res.status(400).json({ ok: false, error: result.error, code: result.code || null });
   }
+  const activityText = formatActivity(req.user, name, result, body);
+  if (activityText) broadcastActivity(activityText);
   respondState(req, res, { log: result.log || [], meta: result.meta || null });
 });
 
@@ -138,6 +141,8 @@ app.post("/api/purchase", authMiddleware, async (req, res) => {
   try {
     const result = await createPurchaseRequest(req.user, req.body || {});
     if (!result.ok) return res.status(400).json(result);
+    const activityText = formatActivity(req.user, "purchase-request", result, req.body || {});
+    if (activityText) broadcastActivity(activityText);
     res.json(result);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message || "요청 실패" });

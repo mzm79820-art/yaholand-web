@@ -34,7 +34,14 @@ function attachChat(server) {
 
   function pushRecent(msg) {
     recent.push(msg);
-    if (recent.length > 40) recent.shift();
+    if (recent.length > 80) recent.shift();
+  }
+
+  function broadcastActivity(text) {
+    if (!text) return;
+    const msg = { type: "activity", text: String(text).slice(0, 160), at: Date.now() };
+    pushRecent(msg);
+    broadcast(msg);
   }
 
   function onlineList() {
@@ -132,7 +139,8 @@ function attachChat(server) {
     });
   });
 
+  attachChat.broadcastActivity = broadcastActivity;
   return wss;
 }
 
-module.exports = { attachChat };
+module.exports = { attachChat, broadcastActivity: (...args) => attachChat.broadcastActivity?.(...args) };

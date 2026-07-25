@@ -365,9 +365,9 @@ function connectChat() {
       if (state.tab === "chat") render();
       return;
     }
-    if (msg.type === "chat" || msg.type === "system") {
+    if (msg.type === "chat" || msg.type === "system" || msg.type === "activity") {
       state.chat.push(msg);
-      if (state.chat.length > 80) state.chat.shift();
+      if (state.chat.length > 120) state.chat.shift();
       if (state.tab === "chat") render();
       else if (msg.type === "system") showToast(msg.text);
       return;
@@ -989,6 +989,9 @@ function renderChat() {
       if (m.type === "system") {
         return `<div class="chat-sys">${escapeHtml(m.text)}</div>`;
       }
+      if (m.type === "activity") {
+        return `<div class="chat-activity">${escapeHtml(m.text)}</div>`;
+      }
       return `<div class="chat-msg"><b>${escapeHtml(m.nickname)}</b> ${escapeHtml(m.text)}</div>`;
     })
     .join("");
@@ -998,6 +1001,7 @@ function renderChat() {
       <h2>광장 채팅</h2>
       <p class="muted">접속 ${state.online.length}명 · ${online}</p>
       <p class="muted" style="margin-top:4px">비속어·정치·종교 관련 표현은 * 로 가려집니다.</p>
+      <p class="muted" style="margin-top:4px">다른 모험가의 놀기·던전·펫·직업·상점 결과도 여기에 표시됩니다.</p>
     </div>
     <div class="chat-box" id="chatBox">${lines || '<div class="chat-sys">아직 메시지가 없습니다.</div>'}</div>
     <form id="chatForm" class="chat-form">
