@@ -3,15 +3,19 @@ const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const { register, login, destroySession, getUserByToken, authMiddleware } = require("./auth");
-const { getPlayer, savePlayer } = require("./db");
+const { getPlayer, savePlayer, listUsers } = require("./db");
 const { publicState } = require("./game/helpers");
 const { playRps } = require("./game/rps");
 const { playDice } = require("./game/dice");
 const { buyBait, fish } = require("./game/fish");
 const { adoptPet, walkPet, trainPet, buyPetFood, feedPet } = require("./game/pet");
 const { chooseJob, buyJobChange, trainSlime } = require("./game/job");
-const { attackDungeon, equipItem, unequipItem, sellItem, enrichItems } = require("./game/dungeon");
+const { attackDungeon, equipItem, unequipItem, sellItem, enrichItems, enrichEquips } = require("./game/dungeon");
+const { useJobSkill } = require("./game/jobSkills");
+const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
+const { mine } = require("./game/mine");
 const { attachChat } = require("./chat");
+const { createPurchaseRequest } = require("./purchase");
 const C = require("./game/constants");
 
 const app = express();
@@ -52,9 +56,7 @@ function respondState(req, res, extra = {}) {
   const player = getPlayer(req.user.id);
   const state = publicState(req.user, player.point, player.data);
   state.dungeon.bag = enrichItems(player.data.dungeonBag);
-  state.dungeon.equips = enrichItems(player.data.equipSlots).map((x, i) =>
-    player.data.equipSlots[i] ? x : { index: i, empty: true }
-  );
+  state.dungeon.equips = enrichEquips(player.data.equipSlots);
   savePlayer(req.user.id, player.point, player.data);
   res.json({ ok: true, state, ...extra });
 }
@@ -95,6 +97,7 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     rps: (p, d) => playRps(p, d, body.choice, body.bet),
     dice: (p, d) => playDice(p, d, body.bet),
     fish: (p, d) => fish(p, d, body.bait),
+    mine: (p, d) => mine(req.user.id, p, d),
     "buy-bait": (p, d) => buyBait(p, d, body.bait, body.qty),
     "pet-adopt": (p, d) => adoptPet(p, d, body.name),
     "pet-walk": (p, d) => walkPet(p, d),
@@ -104,18 +107,54 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "job-choose": (p, d) => chooseJob(p, d, body.job),
     "job-change-ticket": (p, d) => buyJobChange(p, d),
     "job-slime": (p, d) => trainSlime(p, d),
+    "job-skill": (p, d) => useJobSkill(req.user, p, d, body),
     "dungeon-attack": (p, d) => attackDungeon(p, d, body.num),
-    "dungeon-equip": (p, d) => equipItem(p, d, body.bagIndex, body.slotIndex),
-    "dungeon-unequip": (p, d) => unequipItem(p, d, body.slotIndex),
-    "dungeon-sell": (p, d) => sellItem(p, d, body.bagIndex)
+    "dungeon-equip": (p, d) => equipItem(p, d, body.bagIndex, body.slotKey),
+    "dungeon-unequip": (p, d) => unequipItem(p, d, body.slotKey),
+    "dungeon-sell": (p, d) => sellItem(p, d, body.bagIndex),
+    "sword-start": (p, d) => startSword(p, d),
+    "sword-enhance": (p, d) => enhanceSword(p, d),
+    "sword-continue": (p, d) => continueSword(p, d),
+    "sword-claim": (p, d) => claimSword(p, d)
   };
 
   const fn = handlers[name];
   if (!fn) return res.status(404).json({ ok: false, error: "없는 행동입니다." });
 
   const result = withPlayer(req.user.id, fn);
-  if (!result.ok) return res.status(400).json(result);
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error, code: result.code || null });
+  }
   respondState(req, res, { log: result.log || [], meta: result.meta || null });
+});
+
+app.post("/api/purchase", authMiddleware, async (req, res) => {
+  try {
+    const result = await createPurchaseRequest(req.user, req.body || {});
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || "요청 실패" });
+  }
+});
+
+app.get("/api/bank", (_req, res) => {
+  res.json({ ok: true, bank: C.BANK });
+});
+
+app.get("/api/users", authMiddleware, (req, res) => {
+  const users = listUsers()
+    .filter((u) => u.id !== req.user.id)
+    .map((u) => {
+      const player = getPlayer(u.id);
+      return {
+        id: u.id,
+        nickname: u.nickname,
+        job: player?.data?.job || null,
+        wantedBounty: player?.data?.wantedBounty || 0
+      };
+    });
+  res.json({ ok: true, users });
 });
 
 app.get("*", (req, res) => {

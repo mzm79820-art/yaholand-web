@@ -15,6 +15,7 @@ function adoptPet(point, data, name) {
   data.petLevel = 1;
   data.petExp = 0;
   data.petTier = 0;
+  if (data.petFood == null) data.petFood = 0;
   return {
     ok: true,
     point,
@@ -56,7 +57,7 @@ function trainPet(point, data) {
   if (data.trainCount >= C.DAILY_TRAIN_LIMIT) {
     return { ok: false, error: `오늘 훈련 ${C.DAILY_TRAIN_LIMIT}회를 모두 사용했습니다.` };
   }
-  if (point < C.TRAIN_COST) return { ok: false, error: `훈련비 ${C.TRAIN_COST}P 필요` };
+  if (point < C.TRAIN_COST) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   point -= C.TRAIN_COST;
   data.trainCount += 1;
   const leveled = addExp(data.petLevel, data.petExp, C.TRAIN_EXP, C.PET_MAX_LEVEL, C.LEVEL_EXP);
@@ -81,7 +82,7 @@ function buyPetFood(point, data, qty) {
   qty = Math.floor(Number(qty) || 1);
   if (qty < 1 || qty > 50) return { ok: false, error: "수량은 1~50입니다." };
   const cost = C.PET_FOOD_PRICE * qty;
-  if (point < cost) return { ok: false, error: `포인트 부족 (필요 ${cost}P)` };
+  if (point < cost) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   point -= cost;
   data.petFood = (data.petFood || 0) + qty;
   return {

@@ -1,5 +1,6 @@
 const { getDateKey, clamp } = require("../date");
 const C = require("./constants");
+const { getSwordView } = require("./sword");
 
 function resetDaily(data, fieldDate, fieldCount, dateKey) {
   if (data[fieldDate] !== dateKey) {
@@ -36,10 +37,13 @@ function jobByKey(key) {
 function combatPower(data) {
   // 맨몸 기준치 — 던전1(need 50)은 장비 없이 입장 가능
   let power = 60;
-  for (const slot of data.equipSlots || []) {
-    if (!slot) continue;
-    const item = C.DUNGEON_ITEMS.find((i) => i.key === slot.key);
-    if (item) power += item.power * (1 + (slot.enhance || 0) * 0.08);
+  const equipped = Array.isArray(data.equipSlots)
+    ? data.equipSlots
+    : Object.values(data.equipSlots || {});
+  for (const equippedItem of equipped) {
+    if (!equippedItem) continue;
+    const item = C.DUNGEON_ITEMS.find((i) => i.key === equippedItem.key);
+    if (item) power += item.power * (1 + (equippedItem.enhance || 0) * 0.08);
   }
   const stats = data.jobStats || {};
   power += (stats.str || 0) * 3 + (stats.dex || 0) * 2 + (stats.int || 0) + (stats.wis || 0);
@@ -67,18 +71,20 @@ function publicState(user, point, data) {
       fish: { used: data.fishCount, max: C.DAILY_FISH_LIMIT },
       walk: { used: data.walkCount, max: C.DAILY_WALK_LIMIT },
       train: { used: data.trainCount, max: C.DAILY_TRAIN_LIMIT },
-      dungeon: { used: data.dungeonCount, max: C.DAILY_DUNGEON_LIMIT }
+      dungeon: { used: data.dungeonCount, max: C.DAILY_DUNGEON_LIMIT },
+      mine: { cooldownMs: C.MINE_COOLDOWN_MS, unlimited: true }
     },
     pet: data.pet
       ? {
           species: data.pet,
+          emoji: String(data.pet).split(" ")[0] || "🐾",
           name: data.petName || data.pet,
-          level: data.petLevel,
-          exp: data.petExp,
-          need: C.LEVEL_EXP[data.petLevel - 1] || 0,
-          tier: data.petTier,
-          tierLabel: petTierName(data.petTier),
-          food: data.petFood
+          level: data.petLevel || 1,
+          exp: data.petExp || 0,
+          need: C.LEVEL_EXP[(data.petLevel || 1) - 1] || 0,
+          tier: data.petTier || 0,
+          tierLabel: (petTierName(data.petTier) || "").trim() || "일반",
+          food: data.petFood || 0
         }
       : null,
     fishing: {
@@ -98,7 +104,15 @@ function publicState(user, point, data) {
           exp: data.jobExp,
           need: C.LEVEL_EXP[data.jobLevel - 1] || 0,
           tier: data.jobTier,
-          stats: data.jobStats,
+          tierName: ["일반", "숙련", "전문", "장인", "전설"][Math.min(4, data.jobTier || 0)],
+          stats: C.STAT_DEFS.map((s) => ({
+            key: s.key,
+            name: s.name,
+            emoji: s.emoji,
+            value: (data.jobStats && data.jobStats[s.key]) || 0
+          })),
+          skill: C.JOB_SKILLS[job.key] || null,
+          skillUsed: data.skillDate === dateKey ? (data.skillCounts?.[job.key === "rogue" ? "steal" : job.key === "police" ? "arrest" : job.key === "alchemist" ? "alchemy" : "curse"] || 0) : 0,
           canChange: !!data.canChangeJob
         }
       : null,
@@ -113,6 +127,20 @@ function publicState(user, point, data) {
         hpLeft: data.dungeonTowerHp?.[d.num] ?? d.hp
       }))
     },
+    avatar: {
+      base: job ? job.emoji : "🧑",
+      equipment: C.EQUIP_SLOTS.map((slot) => {
+        const equipped = data.equipSlots?.[slot.key];
+        const def = equipped ? C.DUNGEON_ITEMS.find((i) => i.key === equipped.key) : null;
+        return { slot: slot.key, name: slot.name, emoji: def?.emoji || slot.emoji, equipped: !!def };
+      })
+    },
+    sword: getSwordView(data),
+    status: {
+      wantedBounty: data.wantedBounty || 0,
+      cursed: (data.curseUntil || 0) > Date.now(),
+      curseUntil: data.curseUntil || 0
+    },
     catalogs: {
       baits: C.FISH_BAITS,
       jobs: C.JOBS,
@@ -122,7 +150,8 @@ function publicState(user, point, data) {
       petFoodPrice: C.PET_FOOD_PRICE,
       trainCost: C.TRAIN_COST,
       slimeCost: C.SLIME_COST,
-      jobChangePrice: C.JOB_CHANGE_PRICE
+      jobChangePrice: C.JOB_CHANGE_PRICE,
+      bank: C.BANK
     }
   };
 }

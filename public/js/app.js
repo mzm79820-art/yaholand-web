@@ -84,8 +84,24 @@ async function api(url, opts = {}) {
     ...opts
   });
   const data = await res.json().catch(() => ({ ok: false, error: "응답 오류" }));
-  if (!res.ok || data.ok === false) throw new Error(data.error || "요청 실패");
+  if (!res.ok || data.ok === false) {
+    const err = new Error(data.error || "요청 실패");
+    err.code = data.code || null;
+    throw err;
+  }
   return data;
+}
+
+function offerPurchase(message) {
+  const go = window.confirm(`${message || "포인트가 없습니다."}\n\n구매 페이지로 이동하시겠습니까?`);
+  if (go) {
+    closeOverlay();
+    state.tab = "shop";
+    render();
+    setTimeout(() => {
+      document.getElementById("purchasePanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
 }
 
 function setGame(data) {
@@ -278,7 +294,11 @@ async function act(name, body = {}) {
     pointEl.textContent = `${state.game.point}P`;
     return data;
   } catch (ex) {
-    showToast(ex.message);
+    if (ex.code === "NO_POINT" || /포인트가 없/.test(ex.message || "")) {
+      offerPurchase("포인트가 없습니다.");
+    } else {
+      showToast(ex.message);
+    }
     throw ex;
   }
 }
@@ -338,7 +358,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
         <input id="betDice" type="number" min="1" max="${g.catalogs.diceMaxBet}" value="${state.betDice}" />
       </label>
       ${betControls("betDice", g.catalogs.diceMaxBet)}
-      <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max}</p>
+      <p class="muted center">오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</p>
       <button class="btn accent big" id="diceBtn">🎰 주사위 굴리기</button>
     `;
   } else if (kind === "fish") {
@@ -354,8 +374,37 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       <label class="field">미끼
         <select id="baitSel">${baitOpts}</select>
       </label>
-      <p class="muted center">오늘 ${g.limits.fish.used}/${g.limits.fish.max} · 도감 ${g.fishing.codexCount}</p>
+      <p class="muted center">오늘 ${g.limits.fish.used}/${g.limits.fish.max || "∞"} · 도감 ${g.fishing.codexCount}</p>
       <button class="btn accent big" id="fishBtn">🎣 낚시하기</button>
+    `;
+  } else if (kind === "mine") {
+    body = `
+      <div class="stage-art mine-stage" id="mineStage">
+        <div class="mine-visual">⛏️</div>
+        <p class="muted center">쿨타임 ${(g.limits.mine?.cooldownMs || 3000) / 1000}초 · 무제한</p>
+      </div>
+      <div class="result-panel" id="mineLog">곡괭이를 휘둘러 포인트를 캐세요</div>
+      <button class="btn accent big" id="mineBtn">⛏️ 채굴하기</button>
+    `;
+  } else if (kind === "sword") {
+    const sword = g.sword || {};
+    const run = sword.run;
+    body = `
+      <div class="sword-stage">
+        <div class="sword-icon ${run ? "active" : ""}">⚔️</div>
+        <h2>${run ? `+${run.level} 강화 검` : "강화할 검이 없습니다"}</h2>
+        <p class="muted center">${run ? `다음 성공률 ${Math.round((sword.nextRate || 0) * 100)}% · 비용 ${sword.nextCost}P` : `시작 비용 ${sword.startCost || 20}P`}</p>
+      </div>
+      <div class="result-panel" id="swordLog">${run?.pendingChoice ? "성공했습니다! 계속 강화하거나 보상을 받으세요." : "성공할수록 더 강한 장착 무기를 얻습니다."}</div>
+      <div class="stack" id="swordActions">
+        ${!run ? `<button class="btn accent big" data-sword-action="sword-start">검 강화 시작</button>` : ""}
+        ${run && !run.pendingChoice ? `<button class="btn accent big" data-sword-action="sword-enhance">+${run.level + 1} 강화 도전 (${sword.nextCost}P)</button>` : ""}
+        ${run?.pendingChoice ? `
+          <button class="btn accent big" data-sword-action="sword-continue">🔥 계속 강화</button>
+          <button class="btn big" data-sword-action="sword-claim">🎁 +${run.level} 무기 보상 받기</button>
+        ` : ""}
+      </div>
+      <p class="muted center">강화 실패 시 진행 중인 검이 파괴됩니다.</p>
     `;
   }
 
@@ -363,13 +412,15 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     <div class="sheet">
       <div class="sheet-top">
         <button type="button" class="btn ghost back" id="closeOverlay">← 뒤로</button>
-        <strong>${kind === "rps" ? "가위바위보" : kind === "dice" ? "주사위" : "낚시"}</strong>
+        <strong>${kind === "rps" ? "가위바위보" : kind === "dice" ? "주사위" : kind === "fish" ? "낚시" : kind === "mine" ? "채굴" : "검 강화"}</strong>
         <span class="point">${g.point}P</span>
       </div>
       <div class="sheet-body stack">${body}</div>
     </div>
   `;
   overlayEl.classList.remove("hidden");
+  appEl.scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: "instant" });
   bindOverlay(kind, meta);
 }
 
@@ -452,20 +503,49 @@ function bindOverlay(kind, meta) {
         stage?.classList.remove("casting");
         splash?.classList.remove("show");
         const fishMeta = data.meta?.fish;
-        overlayEl.querySelector("#fishLog").textContent =
+        const logText =
           (fishMeta ? `${fishMeta.emoji} ${fishMeta.name}!\n` : "") + (data.log || []).join("\n");
-        overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
-        overlayEl.querySelector(".muted.center").textContent =
-          `오늘 ${data.state.limits.fish.used}/${data.state.limits.fish.max} · 도감 ${data.state.fishing.codexCount}`;
-        // refresh bait counts
         openOverlay("fish", null, true);
-        overlayEl.querySelector("#fishLog").textContent =
-          (fishMeta ? `${fishMeta.emoji} ${fishMeta.name}!\n` : "") + (data.log || []).join("\n");
+        overlayEl.querySelector("#fishLog").textContent = logText;
+        overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
       } catch {
         stage?.classList.remove("casting");
         splash?.classList.remove("show");
       }
     };
+  }
+
+  if (kind === "mine") {
+    overlayEl.querySelector("#mineBtn").onclick = async () => {
+      const stage = overlayEl.querySelector("#mineStage");
+      stage?.classList.add("swing");
+      overlayEl.querySelector("#mineLog").textContent = "채굴 중...";
+      try {
+        const data = await act("mine");
+        await sleep(400);
+        stage?.classList.remove("swing");
+        overlayEl.querySelector("#mineLog").textContent = (data.log || []).join("\n");
+        overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
+      } catch {
+        stage?.classList.remove("swing");
+      }
+    };
+  }
+
+  if (kind === "sword") {
+    overlayEl.querySelectorAll("[data-sword-action]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act(btn.dataset.swordAction);
+          openOverlay("sword", null, true);
+          const log = overlayEl.querySelector("#swordLog");
+          if (log) log.textContent = (data.log || []).join("\n");
+          overlayEl.querySelector(".point").textContent = `${data.state.point}P`;
+        } catch {
+          /* act에서 안내 */
+        }
+      };
+    });
   }
 }
 
@@ -520,8 +600,8 @@ function renderHome() {
         <div class="item"><span>가위바위보</span><span class="meta">${g.limits.rps.used}/${g.limits.rps.max}</span></div>
         <div class="item"><span>주사위</span><span class="meta">${g.limits.dice.used}/${g.limits.dice.max}</span></div>
         <div class="item"><span>낚시</span><span class="meta">${g.limits.fish.used}/${g.limits.fish.max}</span></div>
-        <div class="item"><span>펫</span><span class="meta">${g.pet ? `${g.pet.tierLabel}Lv.${g.pet.level}` : "없음"}</span></div>
-        <div class="item"><span>직업</span><span class="meta">${g.job ? `${g.job.emoji} ${g.job.name} Lv.${g.job.level}` : "미전직"}</span></div>
+        <div class="item"><span>펫</span><span class="meta">${g.pet ? `${g.pet.emoji || ""} ${g.pet.name} ${g.pet.tierLabel} 레벨${g.pet.level}` : "없음"}</span></div>
+        <div class="item"><span>직업</span><span class="meta">${g.job ? `${g.job.emoji} ${g.job.name} 레벨${g.job.level}` : "미전직"}</span></div>
         <div class="item"><span>던전</span><span class="meta">모험가 ${g.dungeon.rank} · 전투력 ${g.dungeon.power}</span></div>
         <div class="item"><span>접속 중</span><span class="meta">${state.online.length}명</span></div>
       </div>
@@ -538,30 +618,46 @@ function renderHome() {
 
 function renderPlay() {
   const g = state.game;
+  const diceMax = g.limits.dice.max || "∞";
+  const fishMax = g.limits.fish.max || "∞";
   return `
     <div class="panel">
       <h2>미니게임</h2>
       <p>게임을 선택하면 전용 화면이 열리고, 결과가 크게 표시됩니다.</p>
     </div>
     <button class="game-card" data-open="rps">
-      <img src="/img/rps-ref.png" alt="" />
+      <div class="game-card-icon">✌️</div>
       <div>
         <strong>가위바위보</strong>
         <span>오늘 ${g.limits.rps.used}/${g.limits.rps.max}</span>
       </div>
     </button>
     <button class="game-card" data-open="dice">
-      <img src="/img/dice-slot.png" alt="" />
+      <div class="game-card-icon">🎲</div>
       <div>
         <strong>주사위</strong>
-        <span>오늘 ${g.limits.dice.used}/${g.limits.dice.max}</span>
+        <span>오늘 ${g.limits.dice.used}/${diceMax}</span>
       </div>
     </button>
     <button class="game-card" data-open="fish">
-      <img src="/img/fish-scene.png" alt="" />
+      <div class="game-card-icon">🎣</div>
       <div>
         <strong>낚시</strong>
-        <span>오늘 ${g.limits.fish.used}/${g.limits.fish.max}</span>
+        <span>오늘 ${g.limits.fish.used}/${fishMax}</span>
+      </div>
+    </button>
+    <button class="game-card" data-open="mine">
+      <div class="game-card-icon">⛏️</div>
+      <div>
+        <strong>채굴</strong>
+        <span>노가다 · 쿨타임 ${(g.limits.mine?.cooldownMs || 3000) / 1000}초 · 무제한</span>
+      </div>
+    </button>
+    <button class="game-card" data-open="sword">
+      <div class="game-card-icon">⚔️</div>
+      <div>
+        <strong>검 강화</strong>
+        <span>${g.sword?.run ? `현재 +${g.sword.run.level}강` : `시작 ${g.sword?.startCost || 20}P`}</span>
       </div>
     </button>
   `;
@@ -582,6 +678,7 @@ function renderChat() {
       <h2>광장 채팅</h2>
       <p class="muted">접속 ${state.online.length}명 · ${online}</p>
       <p class="muted" style="margin-top:4px">비속어·정치·종교 관련 표현은 * 로 가려집니다.</p>
+      <p class="muted">GM: 채팅에 /gm 로그인 (비밀번호) 후 /gm 지급 닉네임 포인트</p>
     </div>
     <div class="chat-box" id="chatBox">${lines || '<div class="chat-sys">아직 메시지가 없습니다.</div>'}</div>
     <form id="chatForm" class="chat-form">
@@ -597,7 +694,7 @@ function renderPet() {
     return `
       <div class="panel stack">
         <h2>펫 입양</h2>
-        <p>랜덤 펫을 무료로 입양합니다.</p>
+        <p>아직 펫이 없습니다. 랜덤 펫을 무료로 입양하세요.</p>
         <label class="field">이름 (선택)
           <input id="petName" maxlength="10" placeholder="비우면 기본 이름" />
         </label>
@@ -605,16 +702,40 @@ function renderPet() {
       </div>
     `;
   }
+  const p = g.pet;
   return `
-    <div class="panel">
-      <h2>${g.pet.species}</h2>
-      <p>${g.pet.tierLabel}${g.pet.name} · Lv.${g.pet.level} (EXP ${g.pet.exp}/${g.pet.need || "-"})</p>
-      <p class="muted" style="margin-top:6px">간식 ${g.pet.food}개 · 산책 ${g.limits.walk.used}/${g.limits.walk.max} · 훈련 ${g.limits.train.used}/${g.limits.train.max}</p>
-      <div class="row" style="margin-top:12px">
+    <div class="panel pet-card">
+      <div class="pet-emoji">${escapeHtml(p.emoji || "🐾")}</div>
+      <h2>${escapeHtml(p.species)}</h2>
+      <p class="pet-name">이름: <b>${escapeHtml(p.name)}</b></p>
+      <div class="stat-grid">
+        <div class="stat-item"><span>등급</span><b>${escapeHtml(p.tierLabel)}</b></div>
+        <div class="stat-item"><span>레벨</span><b>${p.level}</b></div>
+        <div class="stat-item"><span>경험치</span><b>${p.exp} / ${p.need || "-"}</b></div>
+        <div class="stat-item"><span>간식</span><b>${p.food}개</b></div>
+        <div class="stat-item"><span>산책</span><b>${g.limits.walk.used} / ${g.limits.walk.max}</b></div>
+        <div class="stat-item"><span>훈련</span><b>${g.limits.train.used} / ${g.limits.train.max}</b></div>
+      </div>
+      <div class="row" style="margin-top:14px">
         <button class="btn" id="walkBtn">산책</button>
         <button class="btn secondary" id="trainBtn">훈련 (${g.catalogs.trainCost}P)</button>
-        <button class="btn accent" id="feedBtn">간식</button>
+        <button class="btn accent" id="feedBtn">간식 주기</button>
       </div>
+    </div>
+  `;
+}
+
+function renderAvatar() {
+  const avatar = state.game?.avatar;
+  if (!avatar) return "";
+  const equipped = (avatar.equipment || [])
+    .filter((x) => x.equipped)
+    .map((x) => `<span title="${escapeHtml(x.name)}">${escapeHtml(x.emoji)}</span>`)
+    .join("");
+  return `
+    <div class="avatar-stage">
+      <div class="avatar-base">${escapeHtml(avatar.base || "🧑")}</div>
+      <div class="avatar-equipment">${equipped || '<span class="muted">장비 없음</span>'}</div>
     </div>
   `;
 }
@@ -632,16 +753,41 @@ function renderJob() {
       </div>
     `;
   }
-  const stats = Object.entries(g.job.stats || {})
-    .map(([k, v]) => `${k.toUpperCase()} ${v}`)
-    .join(" · ");
+  const stats = (g.job.stats || [])
+    .map((s) => `<div class="stat-item"><span>${s.emoji || ""} ${s.name}</span><b>${s.value}</b></div>`)
+    .join("");
+  const skill = g.job.skill;
+  const needsTarget = ["rogue", "police", "darkmage"].includes(g.job.key);
   return `
     <div class="panel stack">
       <h2>${g.job.emoji} ${g.job.name}</h2>
-      <p>Lv.${g.job.level} (EXP ${g.job.exp}/${g.job.need || "-"}) · 티어 ${g.job.tier}</p>
-      <p class="muted">${stats}</p>
+      ${renderAvatar()}
+      <div class="stat-grid">
+        <div class="stat-item"><span>등급</span><b>${g.job.tierName || "일반"}</b></div>
+        <div class="stat-item"><span>레벨</span><b>${g.job.level}</b></div>
+        <div class="stat-item"><span>경험치</span><b>${g.job.exp} / ${g.job.need || "-"}</b></div>
+      </div>
+      <h3 class="stat-title">능력치</h3>
+      <div class="stat-grid">${stats}</div>
       <button class="btn accent" id="slimeBtn">슬라임 훈련 (${g.catalogs.slimeCost}P)</button>
     </div>
+    ${skill ? `
+    <div class="panel stack">
+      <h2>고유 스킬 · ${escapeHtml(skill.name)}</h2>
+      <p>${g.job.key === "police" ? "수배 중인 유저를 체포해 현상금을 받습니다." :
+        g.job.key === "rogue" ? "다른 유저의 포인트를 훔칩니다. 실패하면 위로금을 냅니다." :
+        g.job.key === "alchemist" ? "포인트를 재료로 사용해 더 많은 포인트를 만듭니다." :
+        "다른 유저에게 1시간 동안 불운을 줍니다."}</p>
+      ${needsTarget ? `
+        <label class="field">대상 닉네임
+          <input id="skillTarget" maxlength="12" placeholder="정확한 닉네임" />
+        </label>
+      ` : ""}
+      <p class="muted">오늘 사용 ${g.job.skillUsed || 0}/${skill.dailyLimit || "∞"}${skill.cost ? ` · 비용 ${skill.cost}P` : ""}</p>
+      <button class="btn accent" id="jobSkillBtn">${g.job.emoji} ${escapeHtml(skill.name)} 사용</button>
+      <div class="result-panel hidden" id="skillResult"></div>
+    </div>
+    ` : ""}
     ${g.job.canChange ? `
     <div class="panel stack">
       <h2>직업 변경</h2>
@@ -666,39 +812,60 @@ function renderDungeon() {
       </div>`
     )
     .join("");
-  const bag =
-    (g.dungeon.bag || [])
-      .map((it) => {
-        const name = it.def ? `${it.def.emoji} ${it.def.name}` : it.key;
-        return `<div class="item">
-          <div><div>${name}</div><div class="meta">가방 #${it.index}</div></div>
-          <div class="row" style="flex:0">
-            <button class="btn ghost" data-equip="${it.index}">장착</button>
-            <button class="btn ghost" data-sell="${it.index}">판매</button>
-          </div>
-        </div>`;
-      })
-      .join("") || `<p class="muted">가방이 비었습니다.</p>`;
-  const equips = (g.dungeon.equips || [])
-    .map((it, i) => {
-      if (it.empty || !it.key) return `<div class="item"><span>칸 ${i + 1}</span><span class="meta">비어 있음</span></div>`;
-      const name = it.def ? `${it.def.emoji} ${it.def.name}` : it.key;
-      return `<div class="item"><span>칸 ${i + 1}: ${name}</span><button class="btn ghost" data-unequip="${i}">해제</button></div>`;
-    })
-    .join("");
   return `
     <div class="panel">
       <h2>던전 <span class="pill">${g.limits.dungeon.used}/${g.limits.dungeon.max}</span></h2>
       <p>모험가 ${g.dungeon.rank} · 전투력 ${g.dungeon.power} · 파괴 ${g.dungeon.clears}회</p>
       <div class="list" style="margin-top:10px">${towers}</div>
     </div>
-    <div class="panel"><h2>장착</h2><div class="list">${equips}</div></div>
+    <div class="panel"><p>획득한 장비와 아바타는 하단 <b>가방</b> 탭에서 관리하세요.</p></div>
+  `;
+}
+
+function renderBag() {
+  const g = state.game;
+  const equips = (g.dungeon.equips || [])
+    .map((slot) => {
+      const item = slot.item;
+      const name = slot.def ? `${slot.def.emoji} ${slot.def.name}${item?.enhance ? ` +${item.enhance}` : ""}` : "비어 있음";
+      return `<div class="equip-slot ${slot.empty ? "empty" : ""}">
+        <span class="slot-icon">${slot.slotEmoji}</span>
+        <div><b>${slot.slotName}</b><div class="meta">${name}</div></div>
+        ${slot.empty ? "" : `<button class="btn ghost" data-unequip="${slot.slotKey}">해제</button>`}
+      </div>`;
+    })
+    .join("");
+  const bag = (g.dungeon.bag || [])
+    .map((it) => {
+      const def = it.def;
+      const name = def ? `${def.emoji} ${def.name}${it.enhance ? ` +${it.enhance}` : ""}` : it.key;
+      const slotOptions = def?.slot === "weapon"
+        ? `<button class="btn ghost" data-equip="${it.index}" data-slot-key="leftWeapon">왼손</button>
+           <button class="btn ghost" data-equip="${it.index}" data-slot-key="rightWeapon">오른손</button>`
+        : def?.slot === "ring"
+          ? `<button class="btn ghost" data-equip="${it.index}" data-slot-key="leftRing">왼쪽</button>
+             <button class="btn ghost" data-equip="${it.index}" data-slot-key="rightRing">오른쪽</button>`
+          : `<button class="btn ghost" data-equip="${it.index}">장착</button>`;
+      return `<div class="bag-item">
+        <div><b>${name}</b><div class="meta">${def?.rarity || "?"}등급 · 전투력 ${def?.power || 0}</div></div>
+        <div class="bag-actions">${slotOptions}<button class="btn ghost" data-sell="${it.index}">판매</button></div>
+      </div>`;
+    })
+    .join("") || `<p class="muted">가방이 비었습니다. 던전 파괴나 검 강화 보상으로 장비를 얻으세요.</p>`;
+  return `
+    <div class="panel">
+      <h2>캐릭터 아바타</h2>
+      ${renderAvatar()}
+      <p class="center">전투력 <b>${g.dungeon.power}</b></p>
+    </div>
+    <div class="panel"><h2>장착 장비</h2><div class="equip-grid">${equips}</div></div>
     <div class="panel"><h2>가방</h2><div class="list">${bag}</div></div>
   `;
 }
 
 function renderShop() {
   const g = state.game;
+  const bank = g.catalogs.bank || {};
   const baits = g.catalogs.baits
     .map(
       (b) => `<div class="item">
@@ -711,6 +878,29 @@ function renderShop() {
     )
     .join("");
   return `
+    <div class="panel stack" id="purchasePanel">
+      <h2>포인트 구매 (계좌이체)</h2>
+      <p>입금 확인 후 GM이 포인트를 지급합니다. (1원 = ${bank.wonPerPoint || 1}P)</p>
+      <div class="bank-box">
+        <div><b>은행</b> ${escapeHtml(bank.bank || "농협")}</div>
+        <div><b>예금주</b> ${escapeHtml(bank.holder || "")}</div>
+        <div><b>계좌</b> ${escapeHtml(bank.account || "")}</div>
+        <div class="muted">알림 메일: ${escapeHtml(bank.notifyEmail || "")}</div>
+      </div>
+      <label class="field">입금자명
+        <input id="buyDepositor" maxlength="20" placeholder="통장 이름" />
+      </label>
+      <label class="field">입금 금액 (원)
+        <input id="buyAmount" type="number" min="1000" step="1000" placeholder="예: 10000" />
+      </label>
+      <p class="muted" id="buyPreview">예상 포인트: -</p>
+      <label class="field">메모 (선택)
+        <input id="buyMemo" maxlength="100" placeholder="남길 말" />
+      </label>
+      <button class="btn accent" id="buyRequestBtn">구매 요청하기</button>
+      <div class="err" id="buyErr"></div>
+      <p class="muted">요청 후 위 계좌로 입금해 주세요. 확인되면 포인트가 지급됩니다.</p>
+    </div>
     <div class="panel"><h2>미끼 상점</h2><div class="list">${baits}</div></div>
     <div class="panel stack">
       <h2>펫 용품</h2>
@@ -758,8 +948,14 @@ function bindCommon() {
   const adoptBtn = document.getElementById("adoptBtn");
   if (adoptBtn) {
     adoptBtn.onclick = async () => {
-      const data = await act("pet-adopt", { name: document.getElementById("petName")?.value || "" });
-      setGame(data);
+      try {
+        const data = await act("pet-adopt", { name: document.getElementById("petName")?.value || "" });
+        state.tab = "pet";
+        setGame(data);
+        showToast("펫을 입양했습니다!");
+      } catch {
+        /* toast already */
+      }
     };
   }
   const walkBtn = document.getElementById("walkBtn");
@@ -774,22 +970,40 @@ function bindCommon() {
   });
   const slimeBtn = document.getElementById("slimeBtn");
   if (slimeBtn) slimeBtn.onclick = async () => setGame(await act("job-slime"));
+  const jobSkillBtn = document.getElementById("jobSkillBtn");
+  if (jobSkillBtn) {
+    jobSkillBtn.onclick = async () => {
+      const targetNickname = document.getElementById("skillTarget")?.value || "";
+      try {
+        const data = await act("job-skill", { targetNickname });
+        setGame(data);
+        const result = document.getElementById("skillResult");
+        if (result) {
+          result.textContent = (data.log || []).join("\n");
+          result.classList.remove("hidden");
+        }
+      } catch {
+        /* act에서 안내 */
+      }
+    };
+  }
 
   document.querySelectorAll("[data-dun]").forEach((btn) => {
     btn.onclick = async () => setGame(await act("dungeon-attack", { num: Number(btn.dataset.dun) }));
   });
   document.querySelectorAll("[data-equip]").forEach((btn) => {
     btn.onclick = async () => {
-      const slot = Number(prompt("장착할 칸 번호 (1~6)", "1")) - 1;
-      if (Number.isNaN(slot)) return;
-      setGame(await act("dungeon-equip", { bagIndex: Number(btn.dataset.equip), slotIndex: slot }));
+      setGame(await act("dungeon-equip", {
+        bagIndex: Number(btn.dataset.equip),
+        slotKey: btn.dataset.slotKey || null
+      }));
     };
   });
   document.querySelectorAll("[data-sell]").forEach((btn) => {
     btn.onclick = async () => setGame(await act("dungeon-sell", { bagIndex: Number(btn.dataset.sell) }));
   });
   document.querySelectorAll("[data-unequip]").forEach((btn) => {
-    btn.onclick = async () => setGame(await act("dungeon-unequip", { slotIndex: Number(btn.dataset.unequip) }));
+    btn.onclick = async () => setGame(await act("dungeon-unequip", { slotKey: btn.dataset.unequip }));
   });
   document.querySelectorAll("[data-buy-bait]").forEach((btn) => {
     btn.onclick = async () => setGame(await act("buy-bait", { bait: btn.dataset.buyBait, qty: 1 }));
@@ -798,6 +1012,37 @@ function bindCommon() {
   if (buyFoodBtn) buyFoodBtn.onclick = async () => setGame(await act("pet-food-buy", { qty: 1 }));
   const jobTicketBtn = document.getElementById("jobTicketBtn");
   if (jobTicketBtn) jobTicketBtn.onclick = async () => setGame(await act("job-change-ticket"));
+
+  const buyAmount = document.getElementById("buyAmount");
+  const buyPreview = document.getElementById("buyPreview");
+  const rate = state.game?.catalogs?.bank?.wonPerPoint || 1;
+  if (buyAmount && buyPreview) {
+    buyAmount.oninput = () => {
+      const won = Math.floor(Number(buyAmount.value) || 0);
+      buyPreview.textContent = won > 0 ? `예상 포인트: ${Math.floor(won / rate).toLocaleString()}P` : "예상 포인트: -";
+    };
+  }
+  const buyRequestBtn = document.getElementById("buyRequestBtn");
+  if (buyRequestBtn) {
+    buyRequestBtn.onclick = async () => {
+      const err = document.getElementById("buyErr");
+      err.textContent = "";
+      try {
+        const result = await api("/api/purchase", {
+          method: "POST",
+          body: JSON.stringify({
+            depositor: document.getElementById("buyDepositor")?.value || "",
+            amountWon: Number(document.getElementById("buyAmount")?.value || 0),
+            memo: document.getElementById("buyMemo")?.value || ""
+          })
+        });
+        showToast("구매 요청이 접수되었습니다.");
+        alert(result.message);
+      } catch (ex) {
+        err.textContent = ex.message;
+      }
+    };
+  }
 }
 
 function render() {
@@ -820,7 +1065,8 @@ function render() {
     pet: renderPet,
     job: renderJob,
     dungeon: renderDungeon,
-    shop: renderShop
+    shop: renderShop,
+    bag: renderBag
   };
   appEl.innerHTML = (views[state.tab] || renderHome)();
   bindCommon();

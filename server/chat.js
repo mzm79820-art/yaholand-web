@@ -1,6 +1,7 @@
 const { WebSocketServer } = require("ws");
 const { getUserByToken } = require("./auth");
 const { sanitizeChat } = require("./chatFilter");
+const { handleGmCommand } = require("./purchase");
 
 function parseCookie(header) {
   const out = {};
@@ -19,7 +20,6 @@ function parseCookie(header) {
 
 function attachChat(server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
-  /** @type {Map<import('ws').WebSocket, {id:number, nickname:string}>} */
   const clients = new Map();
   const recent = [];
 
@@ -82,7 +82,22 @@ function attachChat(server) {
         return;
       }
       if (data.type !== "chat") return;
-      const cleaned = sanitizeChat(data.text);
+
+      const raw = String(data.text || "").trim();
+      if (raw.startsWith("/gm")) {
+        const result = handleGmCommand(user, raw);
+        if (!result) return;
+        if (result.private) {
+          ws.send(JSON.stringify({ type: "system", text: result.text, at: Date.now(), private: true }));
+        } else {
+          const msg = { type: "system", text: result.text, at: Date.now() };
+          pushRecent(msg);
+          broadcast(msg);
+        }
+        return;
+      }
+
+      const cleaned = sanitizeChat(raw);
       if (!cleaned.ok) {
         ws.send(JSON.stringify({ type: "error", error: cleaned.error }));
         return;

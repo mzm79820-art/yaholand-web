@@ -22,7 +22,7 @@ function playRps(point, data, choice, bet) {
   if (C.RPS_MAX_BET > 0 && bet > C.RPS_MAX_BET) {
     return { ok: false, error: `최대 베팅은 ${C.RPS_MAX_BET}P 입니다.` };
   }
-  if (point < bet) return { ok: false, error: "포인트가 부족합니다." };
+  if (point < bet) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   if (data.rpsCount >= C.DAILY_RPS_LIMIT) {
     return { ok: false, error: `오늘 가위바위보 ${C.DAILY_RPS_LIMIT}회를 모두 사용했습니다.` };
   }
@@ -39,6 +39,9 @@ function playRps(point, data, choice, bet) {
   } else if (beats(choice, bot)) {
     result = "win";
     delta = Math.floor(bet * (C.RPS_WIN_MULTIPLIER - 1));
+    if ((data.curseUntil || 0) > Date.now()) {
+      delta = Math.floor(delta * (1 - (data.curseLuckPenalty || 0.2)));
+    }
     point += delta;
     data.rpsWinStreak = (data.rpsWinStreak || 0) + 1;
     data.rpsBestStreak = Math.max(data.rpsBestStreak || 0, data.rpsWinStreak);
@@ -58,6 +61,7 @@ function playRps(point, data, choice, bet) {
     log: [
       `나: ${choice}  vs  봇: ${bot}`,
       text,
+      ...((data.curseUntil || 0) > Date.now() ? ["🕯️ 불운 저주: 승리 보상 20% 감소"] : []),
       `연승 ${data.rpsWinStreak} · 최고 ${data.rpsBestStreak || 0}`,
       `오늘 ${data.rpsCount}/${C.DAILY_RPS_LIMIT} · 잔액 ${point}P`
     ],

@@ -34,8 +34,8 @@ function playDice(point, data, bet) {
   if (C.DICE_MAX_BET > 0 && bet > C.DICE_MAX_BET) {
     return { ok: false, error: `최대 베팅은 ${C.DICE_MAX_BET}P 입니다.` };
   }
-  if (point < bet) return { ok: false, error: "포인트가 부족합니다." };
-  if (data.diceCount >= C.DAILY_DICE_LIMIT) {
+  if (point < bet) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
+  if (C.DAILY_DICE_LIMIT > 0 && data.diceCount >= C.DAILY_DICE_LIMIT) {
     return { ok: false, error: `오늘 주사위 ${C.DAILY_DICE_LIMIT}회를 모두 사용했습니다.` };
   }
 
@@ -47,7 +47,8 @@ function playDice(point, data, bet) {
   const dice = rollDice();
   const faces = dice.map((n) => C.DICE_FACES[n - 1]).join(" ");
   const { mult, label } = payoutMult(dice);
-  const win = Math.floor(stake * mult);
+  const cursed = (data.curseUntil || 0) > Date.now();
+  const win = Math.floor(stake * mult * (cursed ? 1 - (data.curseLuckPenalty || 0.2) : 1));
   point += win;
   const net = win - bet;
 
@@ -58,6 +59,7 @@ function playDice(point, data, bet) {
     log: [
       `${faces}  (${dice.join("-")})`,
       `${label} ×${mult} · 수수료 ${fee}P`,
+      ...(cursed && win > 0 ? ["🕯️ 불운 저주: 당첨금 20% 감소"] : []),
       net >= 0 ? `결과 +${net}P` : `결과 ${net}P`,
       `오늘 ${data.diceCount}/${C.DAILY_DICE_LIMIT} · 잔액 ${point}P`
     ],

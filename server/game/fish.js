@@ -14,7 +14,7 @@ function buyBait(point, data, baitKey, qty) {
   qty = Math.floor(Number(qty) || 1);
   if (qty < 1 || qty > 99) return { ok: false, error: "수량은 1~99입니다." };
   const cost = bait.price * qty;
-  if (point < cost) return { ok: false, error: `포인트 부족 (필요 ${cost}P)` };
+  if (point < cost) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   point -= cost;
   data.baits[baitKey] = (data.baits[baitKey] || 0) + qty;
   return {
@@ -65,7 +65,9 @@ function fish(point, data, baitKey) {
   data.fishCount += 1;
 
   const caught = weightedFish(bait.rareBoost);
-  const sell = randInt(caught.price[0], caught.price[1]);
+  const cursed = (data.curseUntil || 0) > Date.now();
+  let sell = randInt(caught.price[0], caught.price[1]);
+  if (cursed) sell = Math.max(1, Math.floor(sell * (1 - (data.curseLuckPenalty || 0.2))));
   point += sell;
   data.totalFishCaught = (data.totalFishCaught || 0) + 1;
   data.fishCodex[caught.id] = (data.fishCodex[caught.id] || 0) + 1;
@@ -81,6 +83,7 @@ function fish(point, data, baitKey) {
     `${bait.emoji} 미끼 사용 · ${rodName(data.rodTier)} Lv.${data.rodLevel}`,
     `${caught.emoji} ${caught.name} ${stars}`,
     `판매 +${sell}P · 낚싯대 EXP +${rodGain}`,
+    ...(cursed ? ["🕯️ 불운 저주: 판매금 20% 감소"] : []),
     ...leveled.lines,
     `오늘 ${data.fishCount}/${C.DAILY_FISH_LIMIT || "∞"} · 잔액 ${point}P`
   ];

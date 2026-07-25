@@ -28,7 +28,7 @@ function chooseJob(point, data, jobKey) {
     return { ok: false, error: `직업 변경권 필요 (상점 ${C.JOB_CHANGE_PRICE}P)` };
   }
   if (point < C.JOB_CHANGE_PRICE) {
-    return { ok: false, error: `변경 비용 ${C.JOB_CHANGE_PRICE}P 필요` };
+    return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   }
   point -= C.JOB_CHANGE_PRICE;
   data.job = job.key;
@@ -47,7 +47,7 @@ function chooseJob(point, data, jobKey) {
 
 function buyJobChange(point, data) {
   if (data.canChangeJob) return { ok: false, error: "이미 직업 변경권이 있습니다." };
-  if (point < C.JOB_CHANGE_PRICE) return { ok: false, error: "포인트가 부족합니다." };
+  if (point < C.JOB_CHANGE_PRICE) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   point -= C.JOB_CHANGE_PRICE;
   data.canChangeJob = true;
   return {
@@ -61,7 +61,7 @@ function buyJobChange(point, data) {
 function trainSlime(point, data) {
   ensureJobStats(data);
   if (!data.job) return { ok: false, error: "먼저 직업을 선택하세요." };
-  if (point < C.SLIME_COST) return { ok: false, error: `슬라임 훈련비 ${C.SLIME_COST}P 필요` };
+  if (point < C.SLIME_COST) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
 
   point -= C.SLIME_COST;
   const growth = C.JOB_STAT_GROWTH[data.job] || { str: 0, dex: 0, int: 0, wis: 0 };

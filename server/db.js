@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { START_POINT } = require("./game/constants");
+const { START_POINT, EQUIP_SLOTS } = require("./game/constants");
 
 const dataDir = path.join(__dirname, "..", "data");
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -8,7 +8,7 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 const DB_FILE = path.join(dataDir, "store.json");
 
 function emptyStore() {
-  return { nextUserId: 1, users: [], sessions: {}, players: {} };
+  return { nextUserId: 1, nextPurchaseId: 1, users: [], sessions: {}, players: {}, purchases: [] };
 }
 
 function load() {
@@ -27,6 +27,7 @@ function save() {
 }
 
 function defaultPlayerData() {
+  const emptyEquip = Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot.key, null]));
   return {
     lastRpsDate: "",
     rpsCount: 0,
@@ -63,9 +64,40 @@ function defaultPlayerData() {
     lastDungeonDate: "",
     dungeonCount: 0,
     dungeonBag: [],
-    equipSlots: [null, null, null, null, null, null],
-    dungeonTowerHp: {}
+    equipSlots: emptyEquip,
+    equipSlotsVer: 2,
+    dungeonTowerHp: {},
+    skillDate: "",
+    skillCounts: {},
+    wantedBounty: 0,
+    curseUntil: 0,
+    curseLuckPenalty: 0,
+    alchemyWins: 0,
+    stealWins: 0,
+    arrestWins: 0,
+    swordRun: null
   };
+}
+
+function normalizePlayerData(raw) {
+  const data = { ...defaultPlayerData(), ...(raw || {}) };
+  if (!Array.isArray(data.dungeonBag)) data.dungeonBag = [];
+
+  // 구버전 6칸 배열 장비는 손실 없이 가방으로 회수한다.
+  if (Array.isArray(data.equipSlots)) {
+    for (const item of data.equipSlots) {
+      if (item && item.key) data.dungeonBag.push(item);
+    }
+    data.equipSlots = Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot.key, null]));
+    data.equipSlotsVer = 2;
+  } else {
+    const next = {};
+    for (const slot of EQUIP_SLOTS) next[slot.key] = data.equipSlots?.[slot.key] || null;
+    data.equipSlots = next;
+    data.equipSlotsVer = 2;
+  }
+  if (!data.skillCounts || typeof data.skillCounts !== "object") data.skillCounts = {};
+  return data;
 }
 
 function findUserByUsername(username) {
@@ -79,6 +111,10 @@ function findUserById(id) {
 
 function findUserByNickname(nickname) {
   return store.users.find((x) => x.nickname === nickname) || null;
+}
+
+function listUsers() {
+  return store.users.map((u) => ({ id: u.id, username: u.username, nickname: u.nickname }));
 }
 
 function insertUser({ username, passwordHash, nickname }) {
@@ -108,7 +144,7 @@ function getSession(token) {
 function getPlayer(userId) {
   const row = store.players[String(userId)];
   if (!row) return null;
-  const data = { ...defaultPlayerData(), ...row.data };
+  const data = normalizePlayerData(row.data);
   return { point: row.point, data };
 }
 
@@ -121,16 +157,43 @@ function createPlayer(userId) {
   savePlayer(userId, START_POINT, defaultPlayerData());
 }
 
+function addPurchaseRequest(row) {
+  if (!store.purchases) store.purchases = [];
+  if (!store.nextPurchaseId) store.nextPurchaseId = 1;
+  const req = { id: store.nextPurchaseId++, ...row };
+  store.purchases.push(req);
+  save();
+  return req;
+}
+
+function listPurchaseRequests() {
+  return store.purchases || [];
+}
+
+function setPurchaseStatus(id, status) {
+  const req = (store.purchases || []).find((r) => r.id === Number(id));
+  if (!req) return null;
+  req.status = status;
+  req.updatedAt = new Date().toISOString();
+  save();
+  return req;
+}
+
 module.exports = {
   defaultPlayerData,
+  normalizePlayerData,
   getPlayer,
   savePlayer,
   createPlayer,
   findUserByUsername,
   findUserById,
   findUserByNickname,
+  listUsers,
   insertUser,
   createSession,
   deleteSession,
-  getSession
+  getSession,
+  addPurchaseRequest,
+  listPurchaseRequests,
+  setPurchaseStatus
 };

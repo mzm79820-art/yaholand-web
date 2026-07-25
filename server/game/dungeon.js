@@ -4,7 +4,11 @@ const { resetDaily, combatPower } = require("./helpers");
 
 function ensureDungeon(data) {
   if (!data.dungeonBag) data.dungeonBag = [];
-  if (!data.equipSlots) data.equipSlots = Array(C.INVENTORY_SLOT_COUNT).fill(null);
+  if (!data.equipSlots || Array.isArray(data.equipSlots)) {
+    const legacy = Array.isArray(data.equipSlots) ? data.equipSlots.filter(Boolean) : [];
+    data.dungeonBag.push(...legacy);
+    data.equipSlots = Object.fromEntries(C.EQUIP_SLOTS.map((slot) => [slot.key, null]));
+  }
   if (!data.dungeonTowerHp) data.dungeonTowerHp = {};
 }
 
@@ -67,47 +71,49 @@ function attackDungeon(point, data, num) {
   return { ok: true, point, data, log };
 }
 
-function equipItem(point, data, bagIndex, slotIndex) {
+function equipItem(point, data, bagIndex, slotKey) {
   ensureDungeon(data);
   bagIndex = Number(bagIndex);
-  slotIndex = Number(slotIndex);
   if (bagIndex < 0 || bagIndex >= data.dungeonBag.length) {
     return { ok: false, error: "가방 인덱스가 잘못되었습니다." };
   }
-  if (slotIndex < 0 || slotIndex >= C.INVENTORY_SLOT_COUNT) {
-    return { ok: false, error: "장착 칸은 0~5입니다." };
-  }
-  const item = data.dungeonBag.splice(bagIndex, 1)[0];
-  const prev = data.equipSlots[slotIndex];
-  data.equipSlots[slotIndex] = item;
-  if (prev) data.dungeonBag.push(prev);
+  const item = data.dungeonBag[bagIndex];
   const def = C.DUNGEON_ITEMS.find((i) => i.key === item.key);
+  if (!def) return { ok: false, error: "아이템 정보를 찾을 수 없습니다." };
+  const allowed = C.EQUIP_SLOTS.filter((slot) => slot.accepts.includes(def.slot));
+  let slot = allowed.find((s) => s.key === slotKey);
+  if (!slot && allowed.length === 1) slot = allowed[0];
+  if (!slot) slot = allowed.find((s) => !data.equipSlots[s.key]) || allowed[0];
+  if (!slot) return { ok: false, error: "이 아이템을 장착할 수 있는 부위가 없습니다." };
+
+  data.dungeonBag.splice(bagIndex, 1);
+  const prev = data.equipSlots[slot.key];
+  data.equipSlots[slot.key] = item;
+  if (prev) data.dungeonBag.push(prev);
   return {
     ok: true,
     point,
     data,
     log: [
-      `${def ? def.emoji + " " + def.name : item.key} 장착 (칸 ${slotIndex + 1})`,
+      `${def.emoji} ${def.name} 장착 (${slot.name})`,
       `전투력 ${combatPower(data)}`
     ]
   };
 }
 
-function unequipItem(point, data, slotIndex) {
+function unequipItem(point, data, slotKey) {
   ensureDungeon(data);
-  slotIndex = Number(slotIndex);
-  if (slotIndex < 0 || slotIndex >= C.INVENTORY_SLOT_COUNT) {
-    return { ok: false, error: "장착 칸이 잘못되었습니다." };
-  }
-  const item = data.equipSlots[slotIndex];
+  const slot = C.EQUIP_SLOTS.find((s) => s.key === slotKey);
+  if (!slot) return { ok: false, error: "장착 부위가 잘못되었습니다." };
+  const item = data.equipSlots[slot.key];
   if (!item) return { ok: false, error: "빈 칸입니다." };
-  data.equipSlots[slotIndex] = null;
+  data.equipSlots[slot.key] = null;
   data.dungeonBag.push(item);
   return {
     ok: true,
     point,
     data,
-    log: [`장착 해제 → 가방으로`, `전투력 ${combatPower(data)}`]
+    log: [`${slot.name} 장착 해제 → 가방으로`, `전투력 ${combatPower(data)}`]
   };
 }
 
@@ -136,4 +142,12 @@ function enrichItems(list) {
   });
 }
 
-module.exports = { attackDungeon, equipItem, unequipItem, sellItem, enrichItems };
+function enrichEquips(equips) {
+  return C.EQUIP_SLOTS.map((slot) => {
+    const item = equips?.[slot.key] || null;
+    const def = item ? C.DUNGEON_ITEMS.find((d) => d.key === item.key) || null : null;
+    return { slotKey: slot.key, slotName: slot.name, slotEmoji: slot.emoji, item, def, empty: !item };
+  });
+}
+
+module.exports = { attackDungeon, equipItem, unequipItem, sellItem, enrichItems, enrichEquips };
