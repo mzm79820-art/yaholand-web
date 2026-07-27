@@ -9,7 +9,9 @@ const state = {
   betRpsPvp: 50,
   betLottery: 100,
   diceTier: "beginner",
-  rpsPvpTarget: "",
+  pendingPvpCode: null,
+  pvpInvitePreview: null,
+  pvpLocalLog: [],
   bait: "basic",
   overlay: null,
   selectedSeed: null,
@@ -478,6 +480,32 @@ function connectChat() {
         .catch(() => {});
       return;
     }
+    if (msg.type === "pvp-room") {
+      if (msg.event === "chat" && msg.message) {
+        if (state.overlay === "rps-pvp") appendPvpChatLine(msg.message);
+        // 상태에도 반영해 두어 재렌더 시 유지
+        const room = state.game?.rpsPvp?.room;
+        if (room) {
+          if (!Array.isArray(room.chat)) room.chat = [];
+          room.chat.push(msg.message);
+        }
+        return;
+      }
+      if (msg.event === "joined" || msg.event === "ready" || msg.event === "countdown" || msg.event === "choosing" || msg.event === "chose") {
+        refreshPvpOverlay(null);
+        return;
+      }
+      if (msg.event === "resolved") {
+        refreshPvpOverlay(msg.line || "대결 종료");
+        return;
+      }
+      if (msg.event === "cancelled" || msg.event === "expired") {
+        refreshPvpOverlay(msg.event === "cancelled" ? "초대가 취소되었습니다" : "초대가 만료되었습니다");
+        return;
+      }
+      refreshPvpOverlay(null);
+      return;
+    }
     if (msg.type === "activity") return;
     if (msg.type === "error") showToast(msg.error);
   };
@@ -501,6 +529,191 @@ function sendChat(text) {
     return;
   }
   chatSocket.send(JSON.stringify({ type: "chat", text }));
+}
+
+function clearPvpQuery() {
+  try {
+    const url = new URL(location.href);
+    if (!url.searchParams.has("pvp")) return;
+    url.searchParams.delete("pvp");
+    history.replaceState({}, "", url.pathname + (url.search || "") + url.hash);
+  } catch {
+    /* */
+  }
+}
+
+function readPvpCodeFromUrl() {
+  try {
+    return new URL(location.href).searchParams.get("pvp") || null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadPvpInvitePreview(code) {
+  if (!code) return null;
+  try {
+    const data = await api(`/api/pvp-invite/${encodeURIComponent(code)}`);
+    if (data?.invite) {
+      state.pendingPvpCode = data.invite.code;
+      state.pvpInvitePreview = data.invite;
+      return data.invite;
+    }
+  } catch {
+    state.pvpInvitePreview = null;
+  }
+  return null;
+}
+
+function appendPvpChatLine(message) {
+  const log = overlayEl.querySelector("#pvpChatLog");
+  if (!log || !message) return;
+  log.querySelector(".muted-line")?.remove();
+  const div = document.createElement("div");
+  if (message.system || !message.nickname) {
+    div.className = "pvp-chat-line system";
+    div.textContent = message.text;
+  } else {
+    const mine = message.nickname === state.game?.nickname;
+    div.className = `pvp-chat-line${mine ? " mine" : ""}`;
+    div.innerHTML = `<strong>${escapeHtml(message.nickname)}</strong> ${escapeHtml(message.text)}`;
+  }
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setPvpLog(lines) {
+  const texts = (lines || []).filter(Boolean).map((t) => String(t));
+  state.pvpLocalLog = texts.map((text) => ({ system: true, text }));
+  const log = overlayEl.querySelector("#pvpChatLog");
+  if (!log) return;
+  if (!texts.length) {
+    log.innerHTML = `<div class="pvp-chat-line system muted-line">방 만들기 또는 코드로 참가하세요.</div>`;
+    return;
+  }
+  log.innerHTML = texts
+    .map((t) => `<div class="pvp-chat-line system">${escapeHtml(t)}</div>`)
+    .join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+async function copyText(text) {
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+async function createPvpRoom() {
+  const bet = Number(overlayEl.querySelector("#betRpsPvp")?.value || state.betRpsPvp);
+  state.betRpsPvp = bet;
+  setPvpLog(["방 생성 중..."]);
+  try {
+    const data = await act("rps-pvp-create", { bet });
+    const code = data.meta?.code || data.state?.rpsPvp?.room?.code || "?";
+    const path = data.meta?.invitePath || `/?pvp=${code}`;
+    const url = `${location.origin}${path.startsWith("/") ? path : `/${path}`}`;
+    const copied = await copyText(url);
+    const lines = [
+      copied ? "링크가 복사되었습니다!" : "링크 복사에 실패했습니다. 아래 코드를 전달하세요.",
+      `초대 코드: ${code}`,
+      url
+    ];
+    state.pvpLocalLog = lines.map((text) => ({ system: true, text }));
+    if (data.state?.rpsPvp?.room) {
+      data.state.rpsPvp.room.chat = [
+        { system: true, text: lines[0] },
+        { system: true, text: lines[1] },
+        { system: true, text: lines[2] }
+      ];
+      state.game = data.state;
+    }
+    openOverlay("rps-pvp", null, true);
+    setPvpLog(lines);
+  } catch (ex) {
+    setPvpLog([`방 만들기 실패: ${ex.message || "오류"}`]);
+  }
+}
+
+let pvpTimerId = null;
+let pvpRefreshLock = 0;
+function stopPvpTimers() {
+  if (pvpTimerId) {
+    clearInterval(pvpTimerId);
+    pvpTimerId = null;
+  }
+}
+
+function pvpCountdownLabel(chooseAt) {
+  const left = chooseAt - Date.now();
+  if (left > 5000) return "5";
+  if (left > 4000) return "4";
+  if (left > 3000) return "3";
+  if (left > 2000) return "2";
+  if (left > 1000) return "1";
+  if (left > 0) return "시작!";
+  return null;
+}
+
+function startPvpTimers() {
+  stopPvpTimers();
+  pvpTimerId = setInterval(() => {
+    if (state.overlay !== "rps-pvp") {
+      stopPvpTimers();
+      return;
+    }
+    const countdownEl = overlayEl.querySelector("#pvpCountdown");
+    if (countdownEl) {
+      const chooseAt = Number(countdownEl.dataset.chooseAt || 0);
+      const label = pvpCountdownLabel(chooseAt);
+      if (label) {
+        countdownEl.textContent = label;
+      } else if (Date.now() - pvpRefreshLock > 800) {
+        pvpRefreshLock = Date.now();
+        refreshPvpOverlay(null);
+      }
+    }
+    overlayEl.querySelectorAll("[data-pvp-remain]").forEach((el) => {
+      const at = Number(el.dataset.pvpRemain || 0);
+      if (!at) return;
+      const s = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+      el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s <= 0 && Date.now() - pvpRefreshLock > 800) {
+        pvpRefreshLock = Date.now();
+        refreshPvpOverlay(null);
+      }
+    });
+  }, 200);
+}
+
+async function refreshPvpOverlay(toastText) {
+  try {
+    const data = await api("/api/me");
+    if (data?.state) {
+      state.game = data.state;
+      pointEl.textContent = `${state.game.point}P`;
+      updateNotifyBadge();
+      if (state.overlay === "rps-pvp") openOverlay("rps-pvp", null, true);
+    }
+  } catch {
+    /* */
+  }
+  if (toastText) showToast(toastText);
 }
 
 function showToast(text) {
@@ -571,6 +784,10 @@ function showAuth() {
       state.user = { nickname: data.state.nickname, username: data.state.username };
       connectChat();
       setGame(data);
+      if (state.pendingPvpCode) {
+        await loadPvpInvitePreview(state.pendingPvpCode);
+        openOverlay("rps-pvp");
+      }
     } catch (ex) {
       err.textContent = ex.message;
     }
@@ -661,6 +878,7 @@ async function act(name, body = {}) {
 function closeOverlay() {
   stopLotteryTimer();
   stopFarmTimer();
+  stopPvpTimers();
   state.overlay = null;
   overlayEl.classList.add("hidden");
   overlayEl.innerHTML = "";
@@ -750,89 +968,160 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       </div>
     `;
   } else if (kind === "rps-pvp") {
-    const pvp = g.rpsPvp || { incoming: [], outgoing: [], active: [], stats: {}, limits: {}, minBet: 10 };
+    const pvp = g.rpsPvp || { room: null, stats: {}, limits: {}, minBet: 10 };
     const minBet = pvp.minBet || g.catalogs?.rpsPvpMinBet || 10;
     if (state.betRpsPvp < minBet) state.betRpsPvp = minBet;
     if (state.betRpsPvp > g.point) state.betRpsPvp = Math.max(minBet, g.point);
     const maxBet = Math.max(minBet, g.point);
     const stats = pvp.stats || {};
     const lim = pvp.limits || {};
+    const room = pvp.room;
     const remainSec = (at) => {
       if (!at) return "";
       const s = Math.max(0, Math.ceil((at - Date.now()) / 1000));
       return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     };
-    const incomingHtml = (pvp.incoming || []).length
-      ? (pvp.incoming || [])
-          .map(
-            (c) => `
-        <div class="pvp-card">
-          <strong>⚔️ ${escapeHtml(c.challengerNick)}</strong>
-          <span class="meta">${c.bet}P · 남은 ${remainSec(c.expiresAt)}</span>
-          <div class="row gap">
-            <button type="button" class="btn accent" data-pvp-accept="${c.id}">수락</button>
-            <button type="button" class="btn ghost" data-pvp-reject="${c.id}">거절 (-${Math.max(1, Math.floor(c.bet * (pvp.rejectFeeRate || 0.1)))}P)</button>
+    const invitePreview = state.pvpInvitePreview;
+
+    const logMessages = room?.chat?.length
+      ? room.chat
+      : state.pvpLocalLog?.length
+        ? state.pvpLocalLog
+        : null;
+    const logLines = logMessages
+      ? logMessages
+          .map((m) => {
+            if (m.system || !m.nickname) {
+              return `<div class="pvp-chat-line system">${escapeHtml(m.text)}</div>`;
+            }
+            const mine = m.nickname === g.nickname;
+            return `<div class="pvp-chat-line ${mine ? "mine" : ""}"><strong>${escapeHtml(m.nickname)}</strong> ${escapeHtml(m.text)}</div>`;
+          })
+          .join("")
+      : `<div class="pvp-chat-line system muted-line">방 만들기 또는 코드로 참가하세요.</div>`;
+
+    let roomHtml = "";
+    if (room) {
+      const isHost = room.hostNick === g.nickname;
+      const other = isHost ? room.guestNick : room.hostNick;
+      const statusOpen = room.status === "open" || room.status === "pending";
+      const inviteUrl = `${location.origin}/?pvp=${encodeURIComponent(room.code)}`;
+      const chatForm = `
+          <form id="pvpChatForm" class="pvp-chat-form">
+            <input id="pvpChatInput" maxlength="120" placeholder="상대에게 메시지" autocomplete="off" />
+            <button type="submit" class="btn accent">전송</button>
+          </form>`;
+      if (statusOpen) {
+        roomHtml = `
+          <div class="pvp-card accent-border">
+            <strong>초대 대기 중</strong>
+            <span class="meta">${room.bet}P · 코드 <b>${escapeHtml(room.code)}</b> · 남은 <span data-pvp-remain="${room.expiresAt || ""}">${remainSec(room.expiresAt)}</span></span>
+            <p class="muted">위 로그의 코드/복사된 링크를 상대에게 보내세요.</p>
+            <div class="pvp-actions">
+              <button type="button" class="btn accent" id="pvpCopyLinkBtn">링크 다시 복사</button>
+              <button type="button" class="btn ghost light" data-pvp-cancel="${room.id}">취소·환불</button>
+            </div>
+            <input id="pvpInviteUrl" type="hidden" value="${escapeHtml(inviteUrl)}" />
           </div>
-        </div>`
-          )
-          .join("")
-      : `<p class="muted">받은 도전이 없습니다.</p>`;
-    const outgoingHtml = (pvp.outgoing || []).length
-      ? (pvp.outgoing || [])
-          .map(
-            (c) => `
-        <div class="pvp-card">
-          <strong>보낸 도전 → ${escapeHtml(c.opponentNick)}</strong>
-          <span class="meta">${c.bet}P · 대기 ${remainSec(c.expiresAt)}</span>
-          <button type="button" class="btn ghost" data-pvp-cancel="${c.id}">취소·환불</button>
-        </div>`
-          )
-          .join("")
-      : "";
-    const activeHtml = (pvp.active || [])
-      .map((c) => {
-        const other = g.nickname === c.challengerNick ? c.opponentNick : c.challengerNick;
+          ${chatForm}`;
+      } else if (room.status === "ready") {
+        const readyLabel = room.myReady
+          ? `<p class="muted center">준비 완료 · 상대 대기 중… (${room.hostReady ? "✓" : "…"} / ${room.guestReady ? "✓" : "…"})</p>`
+          : `<div class="pvp-actions"><button type="button" class="btn accent big" data-pvp-ready="${room.id}">준비!</button></div>`;
+        roomHtml = `
+          <div class="pvp-card accent-border">
+            <strong>${escapeHtml(room.hostNick)} vs ${escapeHtml(room.guestNick || "?")}</strong>
+            <span class="meta">${room.bet}P · 준비 단계</span>
+            <p class="muted center">두 사람 모두 준비 버튼을 누르면 게임이 시작됩니다.</p>
+            ${readyLabel}
+          </div>
+          ${chatForm}`;
+      } else if (room.status === "countdown") {
+        roomHtml = `
+          <div class="pvp-card accent-border">
+            <strong>${escapeHtml(room.hostNick)} vs ${escapeHtml(room.guestNick || "?")}</strong>
+            <span class="meta">${room.bet}P</span>
+            <div class="pvp-countdown" id="pvpCountdown" data-choose-at="${room.chooseAt || ""}">게임이 시작됩니다!</div>
+          </div>
+          ${chatForm}`;
+      } else if (room.status === "choosing") {
         const waitText =
-          c.waitingFor === "me"
+          room.waitingFor === "me"
             ? "당신의 선택!"
-            : c.waitingFor === "opponent"
-              ? `${escapeHtml(other)}님 선택 대기`
+            : room.waitingFor === "opponent"
+              ? `${escapeHtml(other || "상대")}님 선택 대기`
               : "선택 중";
         const choiceBtns =
-          c.waitingFor === "opponent" && c.myChoice
-            ? `<p class="muted">선택 완료 (${escapeHtml(c.myChoice)}) · ${waitText}</p>`
+          room.myChoice
+            ? `<p class="muted center">선택 완료 (${escapeHtml(room.myChoice)}) · ${waitText}</p>`
             : `<div class="choice-row">
-                <button class="btn" data-pvp-choice="가위" data-pvp-id="${c.id}">✌️ 가위</button>
-                <button class="btn" data-pvp-choice="바위" data-pvp-id="${c.id}">✊ 바위</button>
-                <button class="btn" data-pvp-choice="보" data-pvp-id="${c.id}">🖐️ 보</button>
+                <button type="button" class="btn" data-pvp-choice="가위" data-pvp-id="${room.id}">✌️ 가위</button>
+                <button type="button" class="btn" data-pvp-choice="바위" data-pvp-id="${room.id}">✊ 바위</button>
+                <button type="button" class="btn" data-pvp-choice="보" data-pvp-id="${room.id}">🖐️ 보</button>
               </div>`;
-        return `
+        roomHtml = `
           <div class="pvp-card accent-border">
-            <strong>대결 중 vs ${escapeHtml(other)}</strong>
-            <span class="meta">${c.bet}P · ${waitText} · ${remainSec(c.expiresAt)}</span>
+            <strong>${escapeHtml(room.hostNick)} vs ${escapeHtml(room.guestNick || "?")}</strong>
+            <span class="meta">${room.bet}P · ${waitText} · 남은 <span data-pvp-remain="${room.chooseEndsAt || room.expiresAt || ""}">${remainSec(room.chooseEndsAt || room.expiresAt)}</span></span>
             ${choiceBtns}
-          </div>`;
-      })
-      .join("");
+          </div>
+          ${chatForm}`;
+      } else {
+        roomHtml = `
+          <div class="pvp-card accent-border">
+            <strong>${escapeHtml(room.hostNick)} vs ${escapeHtml(room.guestNick || "?")}</strong>
+            <span class="meta">${room.bet}P</span>
+          </div>
+          ${chatForm}`;
+      }
+    }
+
+    let joinHtml = "";
+    if (!room && invitePreview) {
+      joinHtml = `
+        <div class="pvp-card accent-border">
+          <strong>초대 참가</strong>
+          <span class="meta">${escapeHtml(invitePreview.hostNick)}님 · ${invitePreview.bet}P</span>
+          <div class="pvp-actions">
+            <button type="button" class="btn accent big" id="pvpJoinBtn" data-code="${escapeHtml(invitePreview.code)}">참가하기 (-${invitePreview.bet}P)</button>
+          </div>
+        </div>`;
+    }
+
+    const lobbyHtml = room
+      ? ""
+      : `
+      <div class="pvp-section">
+        <h3>방 만들기</h3>
+        <label class="field compact">베팅 (${minBet}P~보유)
+          <input id="betRpsPvp" type="number" min="${minBet}" max="${maxBet}" value="${state.betRpsPvp}" />
+        </label>
+        ${betControls("betRpsPvp", maxBet, minBet)}
+        <div class="pvp-actions">
+          <button type="button" class="btn accent big" id="rpsPvpCreateBtn" data-pvp-action="create">방 만들기</button>
+        </div>
+      </div>
+      ${
+        invitePreview
+          ? joinHtml
+          : `<div class="pvp-section">
+        <h3>코드로 참가</h3>
+        <label class="field">초대 코드
+          <input id="pvpJoinCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="예: 4821" value="${escapeHtml(state.pendingPvpCode || "")}" />
+        </label>
+        <div class="pvp-actions">
+          <button type="button" class="btn ghost light big" id="pvpJoinCodeBtn">참가하기</button>
+        </div>
+      </div>`
+      }`;
+
     body = `
-      <div class="result-panel" id="rpsPvpLog">유저에게 도전하고, 둘 다 가위바위보를 고르면 즉시 정산됩니다.</div>
+      <div class="result-panel pvp-log" id="pvpChatLog">${logLines}</div>
       <p class="muted center">전적 ${stats.wins || 0}승 ${stats.losses || 0}패 · 연승 ${stats.winStreak || 0} (최고 ${stats.bestStreak || 0})</p>
-      <p class="muted center">오늘 도전 ${lim.challenge?.used || 0}/${lim.challenge?.max || 10} · 수락 ${lim.accept?.used || 0}/${lim.accept?.max || 10}</p>
-      ${activeHtml ? `<h3>진행 중</h3>${activeHtml}` : ""}
-      <h3>받은 도전</h3>
-      ${incomingHtml}
-      ${outgoingHtml ? `<h3>보낸 도전</h3>${outgoingHtml}` : ""}
-      <h3>새 도전</h3>
-      <label class="field">상대 닉네임
-        <input id="rpsPvpTarget" maxlength="12" placeholder="정확한 닉네임" value="${escapeHtml(state.rpsPvpTarget || "")}" list="rpsPvpUsers" />
-      </label>
-      <datalist id="rpsPvpUsers"></datalist>
-      <label class="field compact">베팅 (${minBet}P~보유)
-        <input id="betRpsPvp" type="number" min="${minBet}" max="${maxBet}" value="${state.betRpsPvp}" />
-      </label>
-      ${betControls("betRpsPvp", maxBet, minBet)}
-      <button class="btn accent big" id="rpsPvpChallengeBtn">⚔️ 도전하기</button>
-      <p class="muted center">거절 시 상대가 베팅의 10% 수수료를 냅니다. 수락 후 둘 다 선택(3분).</p>
+      <p class="muted center">오늘 초대 ${lim.challenge?.used || 0}/${lim.challenge?.max || 10} · 참가 ${lim.accept?.used || 0}/${lim.accept?.max || 10}</p>
+      ${roomHtml}
+      ${lobbyHtml}
+      <p class="muted center">초대 1분 · 준비 후 카운트다운 · 선택 10초 · 무승부 시 판돈 10% 손실</p>
     `;
   } else if (kind === "fish") {
     const baitOpts = (g.catalogs.baits || [])
@@ -1106,62 +1395,66 @@ function bindOverlay(kind, meta) {
   }
 
   if (kind === "rps-pvp") {
-    api("/api/users")
-      .then((res) => {
-        const list = overlayEl.querySelector("#rpsPvpUsers");
-        if (!list || !res.users) return;
-        list.innerHTML = res.users
-          .map((u) => `<option value="${escapeHtml(u.nickname)}"></option>`)
-          .join("");
-      })
-      .catch(() => {});
-
-    const targetInput = overlayEl.querySelector("#rpsPvpTarget");
-    if (targetInput) {
-      targetInput.oninput = () => {
-        state.rpsPvpTarget = targetInput.value;
+    const createBtn = overlayEl.querySelector("#rpsPvpCreateBtn");
+    if (createBtn) {
+      createBtn.type = "button";
+      createBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        createPvpRoom();
       };
     }
 
-    const challengeBtn = overlayEl.querySelector("#rpsPvpChallengeBtn");
-    if (challengeBtn) {
-      challengeBtn.onclick = async () => {
-        const nickname = overlayEl.querySelector("#rpsPvpTarget")?.value?.trim() || "";
-        const bet = Number(overlayEl.querySelector("#betRpsPvp")?.value || state.betRpsPvp);
-        state.rpsPvpTarget = nickname;
-        state.betRpsPvp = bet;
-        try {
-          const data = await act("rps-pvp-challenge", { nickname, bet });
-          showToast((data.log && data.log[0]) || "도전 완료");
-          openOverlay("rps-pvp", null, true);
-        } catch {
-          /* act toast */
+    const copyBtn = overlayEl.querySelector("#pvpCopyLinkBtn");
+    if (copyBtn) {
+      copyBtn.type = "button";
+      copyBtn.onclick = async () => {
+        const input = overlayEl.querySelector("#pvpInviteUrl");
+        const url = input?.value || "";
+        const code = state.game?.rpsPvp?.room?.code || "";
+        const copied = await copyText(url);
+        if (copied) {
+          setPvpLog(["링크가 복사되었습니다!", code ? `초대 코드: ${code}` : "", url].filter(Boolean));
+        } else {
+          setPvpLog(["링크 복사 실패", code ? `초대 코드: ${code}` : "", url].filter(Boolean));
         }
       };
     }
 
-    overlayEl.querySelectorAll("[data-pvp-accept]").forEach((btn) => {
-      btn.onclick = async () => {
+    const joinBtn = overlayEl.querySelector("#pvpJoinBtn");
+    if (joinBtn) {
+      joinBtn.onclick = async () => {
         try {
-          const data = await act("rps-pvp-accept", { challengeId: btn.dataset.pvpAccept });
-          showToast((data.log && data.log[0]) || "수락");
+          const data = await act("rps-pvp-join", { code: joinBtn.dataset.code });
+          state.pendingPvpCode = null;
+          state.pvpInvitePreview = null;
+          clearPvpQuery();
+          showToast((data.log && data.log[0]) || "참가 완료");
           openOverlay("rps-pvp", null, true);
         } catch {
           /* */
         }
       };
-    });
-    overlayEl.querySelectorAll("[data-pvp-reject]").forEach((btn) => {
-      btn.onclick = async () => {
+    }
+
+    const joinCodeBtn = overlayEl.querySelector("#pvpJoinCodeBtn");
+    if (joinCodeBtn) {
+      joinCodeBtn.onclick = async () => {
+        const code = overlayEl.querySelector("#pvpJoinCode")?.value?.trim() || "";
+        if (!code) return showToast("초대 코드를 입력하세요");
         try {
-          const data = await act("rps-pvp-reject", { challengeId: btn.dataset.pvpReject });
-          showToast((data.log && data.log[0]) || "거절");
+          const data = await act("rps-pvp-join", { code });
+          state.pendingPvpCode = null;
+          state.pvpInvitePreview = null;
+          clearPvpQuery();
+          showToast((data.log && data.log[0]) || "참가 완료");
           openOverlay("rps-pvp", null, true);
         } catch {
           /* */
         }
       };
-    });
+    }
+
     overlayEl.querySelectorAll("[data-pvp-cancel]").forEach((btn) => {
       btn.onclick = async () => {
         try {
@@ -1173,6 +1466,19 @@ function bindOverlay(kind, meta) {
         }
       };
     });
+
+    overlayEl.querySelectorAll("[data-pvp-ready]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("rps-pvp-ready", { challengeId: btn.dataset.pvpReady });
+          showToast((data.log && data.log[0]) || "준비!");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* */
+        }
+      };
+    });
+
     overlayEl.querySelectorAll("[data-pvp-choice]").forEach((btn) => {
       btn.onclick = async () => {
         try {
@@ -1189,6 +1495,29 @@ function bindOverlay(kind, meta) {
         }
       };
     });
+
+    const chatForm = overlayEl.querySelector("#pvpChatForm");
+    if (chatForm) {
+      chatForm.onsubmit = (e) => {
+        e.preventDefault();
+        const input = overlayEl.querySelector("#pvpChatInput");
+        const text = input?.value?.trim() || "";
+        if (!text) return;
+        const room = state.game?.rpsPvp?.room;
+        if (!room || !chatSocket || chatSocket.readyState !== 1) {
+          showToast("채팅 연결을 확인하세요");
+          return;
+        }
+        chatSocket.send(
+          JSON.stringify({ type: "pvp-chat", challengeId: room.id, code: room.code, text })
+        );
+        input.value = "";
+      };
+      const log = overlayEl.querySelector("#pvpChatLog");
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+
+    startPvpTimers();
   }
 
   if (kind === "dice") {
@@ -1737,7 +2066,7 @@ function renderPlay() {
       <div class="game-card-icon">⚔️</div>
       <div>
         <strong>가위바위보 PVP</strong>
-        <span>${(g.rpsPvp?.incoming || []).length ? `도전 ${(g.rpsPvp.incoming || []).length}건` : "유저 대결"} · ${(g.rpsPvp?.stats?.wins || 0)}승</span>
+        <span>${g.rpsPvp?.room ? (["ready", "countdown", "choosing"].includes(g.rpsPvp.room.status) ? "대결 중" : "초대 대기") : "링크 초대"} · ${(g.rpsPvp?.stats?.wins || 0)}승</span>
       </div>
     </button>
     <button class="game-card" data-open="dice">
@@ -2447,12 +2776,18 @@ if (notifyBtn && !notifyBtn.dataset.bound) {
 }
 
 (async function boot() {
+  const pvpCode = readPvpCodeFromUrl();
+  if (pvpCode) state.pendingPvpCode = pvpCode;
   try {
     const data = await api("/api/me");
     if (data.state) {
       state.user = { nickname: data.state.nickname, username: data.state.username };
       connectChat();
       setGame(data);
+      if (state.pendingPvpCode) {
+        await loadPvpInvitePreview(state.pendingPvpCode);
+        openOverlay("rps-pvp");
+      }
     } else showAuth();
   } catch {
     showAuth();

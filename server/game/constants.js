@@ -12,8 +12,10 @@ const DAILY_RPS_PVP_CHALLENGE_LIMIT = 10;
 const DAILY_RPS_PVP_ACCEPT_LIMIT = 10;
 const RPS_PVP_MIN_BET = 10;
 const RPS_PVP_REJECT_FEE_RATE = 0.1;
-const RPS_PVP_PENDING_MS = 5 * 60 * 1000;
-const RPS_PVP_CHOICE_MS = 3 * 60 * 1000;
+const RPS_PVP_DRAW_FEE_RATE = 0.1; // 무승부 시 각자 판돈의 10% 손실
+const RPS_PVP_PENDING_MS = 1 * 60 * 1000; // 초대 대기 1분
+const RPS_PVP_COUNTDOWN_MS = 6 * 1000; // 5,4,3,2,1,시작!
+const RPS_PVP_CHOICE_MS = 10 * 1000; // 선택 제한 10초
 
 const DAILY_DICE_LIMIT = 0; // 0 = 무제한
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -263,7 +265,9 @@ module.exports = {
   DAILY_RPS_PVP_ACCEPT_LIMIT,
   RPS_PVP_MIN_BET,
   RPS_PVP_REJECT_FEE_RATE,
+  RPS_PVP_DRAW_FEE_RATE,
   RPS_PVP_PENDING_MS,
+  RPS_PVP_COUNTDOWN_MS,
   RPS_PVP_CHOICE_MS,
   DAILY_DICE_LIMIT,
   DICE_FACES,

@@ -58,6 +58,21 @@ function attachChat(server) {
     return sent;
   }
 
+  function sendToUsers(userIds, payload) {
+    if (!payload) return 0;
+    const set = new Set((userIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id)));
+    if (!set.size) return 0;
+    const raw = JSON.stringify(payload);
+    let n = 0;
+    for (const [ws, u] of clients) {
+      if (set.has(u.id) && ws.readyState === 1) {
+        ws.send(raw);
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   function onlineList() {
     const seen = new Set();
     const list = [];
@@ -112,6 +127,26 @@ function attachChat(server) {
       } catch {
         return;
       }
+
+      if (data.type === "pvp-chat") {
+        const cleaned = sanitizeChat(data.text);
+        if (!cleaned.ok) {
+          ws.send(JSON.stringify({ type: "error", error: cleaned.error }));
+          return;
+        }
+        try {
+          const { appendPvpChat } = require("./game/rpsPvp");
+          const result = appendPvpChat(user, data.challengeId || data.code, cleaned.text);
+          if (!result.ok) {
+            ws.send(JSON.stringify({ type: "error", error: result.error }));
+          }
+        } catch (e) {
+          console.error("[pvp-chat]", e?.message || e);
+          ws.send(JSON.stringify({ type: "error", error: "채팅 전송 실패" }));
+        }
+        return;
+      }
+
       if (data.type !== "chat") return;
 
       const raw = String(data.text || "").trim();
@@ -163,11 +198,13 @@ function attachChat(server) {
 
   attachChat.broadcastActivity = broadcastActivity;
   attachChat.sendToUser = sendToUser;
+  attachChat.sendToUsers = sendToUsers;
   return wss;
 }
 
 module.exports = {
   attachChat,
   broadcastActivity: (...args) => attachChat.broadcastActivity?.(...args),
-  sendToUser: (...args) => attachChat.sendToUser?.(...args) || false
+  sendToUser: (...args) => attachChat.sendToUser?.(...args) || false,
+  sendToUsers: (...args) => attachChat.sendToUsers?.(...args) || 0
 };

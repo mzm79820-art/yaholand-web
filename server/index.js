@@ -7,11 +7,12 @@ const { getPlayer, savePlayer, listUsers, listPointRanking } = require("./db");
 const { publicState } = require("./game/helpers");
 const { playRps } = require("./game/rps");
 const {
-  challengeRpsPvp,
-  acceptRpsPvp,
-  rejectRpsPvp,
+  createRpsPvpInvite,
+  joinRpsPvpInvite,
   cancelRpsPvp,
+  readyRpsPvp,
   chooseRpsPvp,
+  getInvitePreview,
   cleanupExpiredChallenges
 } = require("./game/rpsPvp");
 const { playDice, unlockDiceTier } = require("./game/dice");
@@ -126,10 +127,10 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
   const body = req.body || {};
   const handlers = {
     rps: (p, d) => playRps(p, d, body.choice, body.bet),
-    "rps-pvp-challenge": (p, d) => challengeRpsPvp(req.user, p, d, body),
-    "rps-pvp-accept": (p, d) => acceptRpsPvp(req.user, p, d, body),
-    "rps-pvp-reject": (p, d) => rejectRpsPvp(req.user, p, d, body),
+    "rps-pvp-create": (p, d) => createRpsPvpInvite(req.user, p, d, body),
+    "rps-pvp-join": (p, d) => joinRpsPvpInvite(req.user, p, d, body),
     "rps-pvp-cancel": (p, d) => cancelRpsPvp(req.user, p, d, body),
+    "rps-pvp-ready": (p, d) => readyRpsPvp(req.user, p, d, body),
     "rps-pvp-choose": (p, d) => chooseRpsPvp(req.user, p, d, body),
     dice: (p, d) => playDice(p, d, body.bet, body.tier || "beginner"),
     "dice-unlock": (p, d) => unlockDiceTier(p, d, body.tier),
@@ -216,6 +217,17 @@ app.get("/api/users", authMiddleware, (req, res) => {
       };
     });
   res.json({ ok: true, users });
+});
+
+app.get("/api/pvp-invite/:code", (req, res) => {
+  try {
+    const result = getInvitePreview(req.params.code);
+    if (!result.ok) return res.status(404).json(result);
+    res.json(result);
+  } catch (e) {
+    console.error("[pvp-invite]", e?.message || e);
+    res.status(500).json({ ok: false, error: "초대를 불러오지 못했습니다." });
+  }
 });
 
 app.get("/api/ranking", authMiddleware, (req, res) => {
