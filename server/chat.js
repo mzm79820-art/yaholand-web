@@ -44,6 +44,20 @@ function attachChat(server) {
     broadcast(msg);
   }
 
+  function sendToUser(userId, payload) {
+    if (userId == null || !payload) return false;
+    const uid = Number(userId);
+    const raw = JSON.stringify(payload);
+    let sent = false;
+    for (const [ws, u] of clients) {
+      if (u.id === uid && ws.readyState === 1) {
+        ws.send(raw);
+        sent = true;
+      }
+    }
+    return sent;
+  }
+
   function onlineList() {
     const seen = new Set();
     const list = [];
@@ -148,7 +162,12 @@ function attachChat(server) {
   });
 
   attachChat.broadcastActivity = broadcastActivity;
+  attachChat.sendToUser = sendToUser;
   return wss;
 }
 
-module.exports = { attachChat, broadcastActivity: (...args) => attachChat.broadcastActivity?.(...args) };
+module.exports = {
+  attachChat,
+  broadcastActivity: (...args) => attachChat.broadcastActivity?.(...args),
+  sendToUser: (...args) => attachChat.sendToUser?.(...args) || false
+};

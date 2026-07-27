@@ -21,6 +21,17 @@ function formatActivity(user, action, result, body = {}) {
       const deltaText = delta > 0 ? `+${delta}P` : delta < 0 ? `${delta}P` : "±0P";
       return `✌️ ${n}님 가위바위보 ${outcome} (${meta.choice} vs ${meta.bot}) ${deltaText}`;
     }
+    case "rps-pvp-challenge":
+      return `⚔️ ${n}님이 ${meta.challenge?.opponentNick || "상대"}님에게 ${meta.challenge?.bet || "?"}P PVP 도전`;
+    case "rps-pvp-accept":
+      return `✅ ${n}님이 PVP 도전을 수락했습니다`;
+    case "rps-pvp-reject":
+      return `❌ ${n}님이 PVP 도전을 거절했습니다`;
+    case "rps-pvp-cancel":
+      return `↩️ ${n}님이 PVP 도전을 취소했습니다`;
+    case "rps-pvp-choose":
+      // 결과는 resolve 시 이미 방송됨
+      return null;
     case "dice": {
       const faces = meta.faces || (meta.dice || []).join("-");
       const net = meta.net;

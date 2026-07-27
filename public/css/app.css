@@ -1172,6 +1172,38 @@ button.btn.big { padding: 16px; font-size: 1.05rem; }
 .farm-crop-item .net-up { color: #95d5b2; font-weight: 700; }
 .farm-crop-item .net-down { color: #f4a261; font-weight: 700; }
 
+.pvp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pvp-card.accent-border {
+  border-color: rgba(231, 111, 81, 0.55);
+  background: rgba(231, 111, 81, 0.1);
+}
+.pvp-card .meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.pvp-card .row.gap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.choice-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.choice-row .btn {
+  flex: 1;
+  min-width: 84px;
+}
+
 @media (max-width: 480px) {
   body { padding: 0; }
   .phone {

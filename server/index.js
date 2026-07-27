@@ -6,6 +6,14 @@ const { register, login, destroySession, getUserByToken, authMiddleware } = requ
 const { getPlayer, savePlayer, listUsers, listPointRanking } = require("./db");
 const { publicState } = require("./game/helpers");
 const { playRps } = require("./game/rps");
+const {
+  challengeRpsPvp,
+  acceptRpsPvp,
+  rejectRpsPvp,
+  cancelRpsPvp,
+  chooseRpsPvp,
+  cleanupExpiredChallenges
+} = require("./game/rpsPvp");
 const { playDice, unlockDiceTier } = require("./game/dice");
 const { buyBait, fish } = require("./game/fish");
 const { adoptPet, walkPet, trainPet, buyPetFood, feedPet } = require("./game/pet");
@@ -118,6 +126,11 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
   const body = req.body || {};
   const handlers = {
     rps: (p, d) => playRps(p, d, body.choice, body.bet),
+    "rps-pvp-challenge": (p, d) => challengeRpsPvp(req.user, p, d, body),
+    "rps-pvp-accept": (p, d) => acceptRpsPvp(req.user, p, d, body),
+    "rps-pvp-reject": (p, d) => rejectRpsPvp(req.user, p, d, body),
+    "rps-pvp-cancel": (p, d) => cancelRpsPvp(req.user, p, d, body),
+    "rps-pvp-choose": (p, d) => chooseRpsPvp(req.user, p, d, body),
     dice: (p, d) => playDice(p, d, body.bet, body.tier || "beginner"),
     "dice-unlock": (p, d) => unlockDiceTier(p, d, body.tier),
     fish: (p, d) => fish(p, d, body.bait),
@@ -237,4 +250,16 @@ server.listen(PORT, () => {
   console.log(`시작 포인트 ${C.START_POINT}P · RPS/주사위 일 ${C.DAILY_RPS_LIMIT}/${C.DAILY_DICE_LIMIT}회`);
   tickLotteryDraw();
   setInterval(tickLotteryDraw, 30 * 1000);
+  try {
+    cleanupExpiredChallenges();
+  } catch (e) {
+    console.error("[rps-pvp cleanup]", e?.message || e);
+  }
+  setInterval(() => {
+    try {
+      cleanupExpiredChallenges();
+    } catch (e) {
+      console.error("[rps-pvp cleanup]", e?.message || e);
+    }
+  }, 30 * 1000);
 });

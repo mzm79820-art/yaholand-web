@@ -31,13 +31,17 @@ function unlockDiceTier(point, data, tierKey) {
   if (point < tier.unlockCost) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
   point -= tier.unlockCost;
   data.unlockedDice[tier.key] = true;
+  const range =
+    tier.maxBet > 0
+      ? `${tier.minBet || 1}~${tier.maxBet}P`
+      : `${tier.minBet || 1}P~보유`;
   return {
     ok: true,
     point,
     data,
     log: [
       `${tier.emoji} 주사위 ${tier.name} 개방! (-${tier.unlockCost}P)`,
-      `최대 베팅 ${tier.maxBet}P · 잔액 ${point}P`
+      `베팅 ${range} · 잔액 ${point}P`
     ],
     meta: { tier: tier.key, unlockCost: tier.unlockCost }
   };
@@ -136,8 +140,11 @@ function playDice(point, data, bet, tierKey = "beginner") {
   }
 
   bet = Math.floor(Number(bet));
-  if (!bet || bet < 1) return { ok: false, error: "베팅 금액을 입력하세요." };
-  if (bet > tier.maxBet) {
+  const minBet = Math.max(1, Math.floor(Number(tier.minBet) || 1));
+  if (!bet || bet < minBet) {
+    return { ok: false, error: `${tier.name} 최소 베팅은 ${minBet}P 입니다.` };
+  }
+  if (tier.maxBet > 0 && bet > tier.maxBet) {
     return { ok: false, error: `${tier.name} 최대 베팅은 ${tier.maxBet}P 입니다.` };
   }
   if (point < bet) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };

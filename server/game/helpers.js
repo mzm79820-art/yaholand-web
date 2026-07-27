@@ -159,6 +159,7 @@ function publicState(user, point, data) {
     diceWave: require("./dice").getDiceWave(data),
     lottery: require("./lottery").getLotteryView(user.id),
     farm: require("./farm").getFarmView(data),
+    rpsPvp: require("./rpsPvp").getRpsPvpView(user.id, data),
     notifications: require("./farm").getNotificationsView(data),
     status: {
       wantedBounty: data.wantedBounty || 0,
@@ -172,6 +173,7 @@ function publicState(user, point, data) {
       rpsMaxBet: C.RPS_MAX_BET,
       diceMaxBet: C.DICE_MAX_BET,
       diceTiers: C.DICE_TIERS,
+      rpsPvpMinBet: C.RPS_PVP_MIN_BET,
       lottery: {
         feeRate: C.LOTTERY_FEE_RATE,
         minBuy: C.LOTTERY_MIN_BUY,

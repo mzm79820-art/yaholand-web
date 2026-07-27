@@ -6,8 +6,10 @@ const state = {
   lastLog: "버튼을 눌러 플레이하세요.",
   betRps: 10,
   betDice: 10,
+  betRpsPvp: 50,
   betLottery: 100,
   diceTier: "beginner",
+  rpsPvpTarget: "",
   bait: "basic",
   overlay: null,
   selectedSeed: null,
@@ -462,6 +464,20 @@ function connectChat() {
       else if (msg.type === "system") showToast(msg.text);
       return;
     }
+    if (msg.type === "notify") {
+      showToast(msg.text || "알림");
+      api("/api/me")
+        .then((data) => {
+          if (data?.state) {
+            state.game = data.state;
+            pointEl.textContent = `${state.game.point}P`;
+            updateNotifyBadge();
+            if (state.overlay === "rps-pvp") openOverlay("rps-pvp", null, true);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
     if (msg.type === "activity") return;
     if (msg.type === "error") showToast(msg.error);
   };
@@ -561,14 +577,16 @@ function showAuth() {
   };
 }
 
-function betControls(inputId, max) {
+function betControls(inputId, max, min = 1) {
+  const resetTo = Math.max(1, Math.floor(Number(min) || 1));
+  const maxVal = Math.max(resetTo, Math.floor(Number(max) || resetTo));
   return `
     <div class="bet-row">
       <button type="button" class="btn chip" data-bet-add="1" data-bet-input="${inputId}">+1</button>
       <button type="button" class="btn chip" data-bet-add="10" data-bet-input="${inputId}">+10</button>
       <button type="button" class="btn chip" data-bet-add="100" data-bet-input="${inputId}">+100</button>
-      <button type="button" class="btn chip" data-bet-set="${max}" data-bet-input="${inputId}">최대</button>
-      <button type="button" class="btn chip ghost" data-bet-set="1" data-bet-input="${inputId}">초기화</button>
+      <button type="button" class="btn chip" data-bet-set="${maxVal}" data-bet-input="${inputId}">최대</button>
+      <button type="button" class="btn chip ghost" data-bet-set="${resetTo}" data-bet-input="${inputId}">초기화</button>
     </div>
   `;
 }
@@ -576,14 +594,17 @@ function betControls(inputId, max) {
 function syncBetState(inputId, value) {
   if (inputId === "betRps") state.betRps = value;
   if (inputId === "betDice") state.betDice = value;
+  if (inputId === "betRpsPvp") state.betRpsPvp = value;
   if (inputId === "betLottery") state.betLottery = value;
 }
 
 function applyBet(inputId, nextValue) {
   const input = document.getElementById(inputId);
   if (!input) return;
-  const max = Number(input.max) || Infinity;
-  const value = Math.max(1, Math.min(max, Math.floor(nextValue)));
+  const min = Math.max(1, Number(input.min) || 1);
+  const rawMax = Number(input.max);
+  const max = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : Infinity;
+  const value = Math.max(min, Math.min(max, Math.floor(nextValue)));
   input.value = value;
   syncBetState(inputId, value);
 }
@@ -599,10 +620,23 @@ function bindBetControls(root = document) {
   root.querySelectorAll("[data-bet-set]").forEach((btn) => {
     btn.onclick = () => applyBet(btn.dataset.betInput, Number(btn.dataset.betSet));
   });
-  ["betRps", "betDice", "betLottery"].forEach((id) => {
+  ["betRps", "betDice", "betRpsPvp", "betLottery"].forEach((id) => {
     const input = root.querySelector(`#${id}`);
-    if (input) input.oninput = () => syncBetState(id, Number(input.value) || 1);
+    if (input) input.oninput = () => syncBetState(id, Number(input.value) || Number(input.min) || 1);
   });
+}
+
+function diceTierRangeLabel(tier) {
+  const min = tier.minBet || 1;
+  if (!tier.maxBet || tier.maxBet <= 0) return `${min}P~`;
+  return `${min}~${tier.maxBet}P`;
+}
+
+function diceTierBetBounds(tier, point) {
+  const min = Math.max(1, Number(tier.minBet) || 1);
+  const capped = tier.maxBet > 0 ? Math.min(tier.maxBet, point) : point;
+  const max = Math.max(min, capped);
+  return { min, max };
 }
 
 async function act(name, body = {}) {
@@ -671,17 +705,19 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     `;
   } else if (kind === "dice") {
     const tiers = g.diceTiers || g.catalogs.diceTiers || [];
-    const current = tiers.find((t) => t.key === state.diceTier) || tiers[0] || { key: "beginner", maxBet: 100, name: "초급", unlocked: true };
+    const current = tiers.find((t) => t.key === state.diceTier) || tiers[0] || { key: "beginner", minBet: 1, maxBet: 100, name: "초급", unlocked: true };
     if (!current.unlocked) {
       const firstOpen = tiers.find((t) => t.unlocked) || tiers[0];
       state.diceTier = firstOpen?.key || "beginner";
     }
     const active = tiers.find((t) => t.key === state.diceTier && t.unlocked) || tiers.find((t) => t.unlocked) || current;
     state.diceTier = active.key;
-    if (state.betDice > active.maxBet) state.betDice = active.maxBet;
+    const { min: minBet, max: maxBet } = diceTierBetBounds(active, g.point);
+    if (state.betDice < minBet) state.betDice = minBet;
+    if (state.betDice > maxBet) state.betDice = maxBet;
     const tierBtns = tiers.map((t) => {
       if (t.unlocked) {
-        return `<button type="button" class="btn chip ${t.key === state.diceTier ? "accent" : "ghost"}" data-dice-tier="${t.key}">${t.emoji} ${t.name} <span class="meta">${t.maxBet}P</span></button>`;
+        return `<button type="button" class="btn chip ${t.key === state.diceTier ? "accent" : "ghost"}" data-dice-tier="${t.key}">${t.emoji} ${t.name} <span class="meta">${diceTierRangeLabel(t)}</span></button>`;
       }
       return `<button type="button" class="btn chip ghost" data-dice-unlock="${t.key}">🔒 ${t.name} <span class="meta">${t.unlockCost}P</span></button>`;
     }).join("");
@@ -705,13 +741,98 @@ function openOverlay(kind, meta = null, keepOpen = false) {
           <span class="die" id="die1">🎲</span>
           <span class="die" id="die2">🎲</span>
         </div>
-        <div class="result-panel compact" id="diceLog">${active.emoji} ${active.name} · 최대 ${active.maxBet}P</div>
-        <label class="field compact">베팅
-          <input id="betDice" type="number" min="1" max="${active.maxBet}" value="${state.betDice}" />
+        <div class="result-panel compact" id="diceLog">${active.emoji} ${active.name} · ${diceTierRangeLabel(active)}</div>
+        <label class="field compact">베팅 (${minBet}~${maxBet}P)
+          <input id="betDice" type="number" min="${minBet}" max="${maxBet}" value="${state.betDice}" />
         </label>
-        ${betControls("betDice", active.maxBet)}
+        ${betControls("betDice", maxBet, minBet)}
         <button class="btn accent big" id="diceBtn">🎰 ${active.name} 굴리기 · 오늘 ${g.limits.dice.used}/${g.limits.dice.max || "∞"}</button>
       </div>
+    `;
+  } else if (kind === "rps-pvp") {
+    const pvp = g.rpsPvp || { incoming: [], outgoing: [], active: [], stats: {}, limits: {}, minBet: 10 };
+    const minBet = pvp.minBet || g.catalogs?.rpsPvpMinBet || 10;
+    if (state.betRpsPvp < minBet) state.betRpsPvp = minBet;
+    if (state.betRpsPvp > g.point) state.betRpsPvp = Math.max(minBet, g.point);
+    const maxBet = Math.max(minBet, g.point);
+    const stats = pvp.stats || {};
+    const lim = pvp.limits || {};
+    const remainSec = (at) => {
+      if (!at) return "";
+      const s = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+    const incomingHtml = (pvp.incoming || []).length
+      ? (pvp.incoming || [])
+          .map(
+            (c) => `
+        <div class="pvp-card">
+          <strong>⚔️ ${escapeHtml(c.challengerNick)}</strong>
+          <span class="meta">${c.bet}P · 남은 ${remainSec(c.expiresAt)}</span>
+          <div class="row gap">
+            <button type="button" class="btn accent" data-pvp-accept="${c.id}">수락</button>
+            <button type="button" class="btn ghost" data-pvp-reject="${c.id}">거절 (-${Math.max(1, Math.floor(c.bet * (pvp.rejectFeeRate || 0.1)))}P)</button>
+          </div>
+        </div>`
+          )
+          .join("")
+      : `<p class="muted">받은 도전이 없습니다.</p>`;
+    const outgoingHtml = (pvp.outgoing || []).length
+      ? (pvp.outgoing || [])
+          .map(
+            (c) => `
+        <div class="pvp-card">
+          <strong>보낸 도전 → ${escapeHtml(c.opponentNick)}</strong>
+          <span class="meta">${c.bet}P · 대기 ${remainSec(c.expiresAt)}</span>
+          <button type="button" class="btn ghost" data-pvp-cancel="${c.id}">취소·환불</button>
+        </div>`
+          )
+          .join("")
+      : "";
+    const activeHtml = (pvp.active || [])
+      .map((c) => {
+        const other = g.nickname === c.challengerNick ? c.opponentNick : c.challengerNick;
+        const waitText =
+          c.waitingFor === "me"
+            ? "당신의 선택!"
+            : c.waitingFor === "opponent"
+              ? `${escapeHtml(other)}님 선택 대기`
+              : "선택 중";
+        const choiceBtns =
+          c.waitingFor === "opponent" && c.myChoice
+            ? `<p class="muted">선택 완료 (${escapeHtml(c.myChoice)}) · ${waitText}</p>`
+            : `<div class="choice-row">
+                <button class="btn" data-pvp-choice="가위" data-pvp-id="${c.id}">✌️ 가위</button>
+                <button class="btn" data-pvp-choice="바위" data-pvp-id="${c.id}">✊ 바위</button>
+                <button class="btn" data-pvp-choice="보" data-pvp-id="${c.id}">🖐️ 보</button>
+              </div>`;
+        return `
+          <div class="pvp-card accent-border">
+            <strong>대결 중 vs ${escapeHtml(other)}</strong>
+            <span class="meta">${c.bet}P · ${waitText} · ${remainSec(c.expiresAt)}</span>
+            ${choiceBtns}
+          </div>`;
+      })
+      .join("");
+    body = `
+      <div class="result-panel" id="rpsPvpLog">유저에게 도전하고, 둘 다 가위바위보를 고르면 즉시 정산됩니다.</div>
+      <p class="muted center">전적 ${stats.wins || 0}승 ${stats.losses || 0}패 · 연승 ${stats.winStreak || 0} (최고 ${stats.bestStreak || 0})</p>
+      <p class="muted center">오늘 도전 ${lim.challenge?.used || 0}/${lim.challenge?.max || 10} · 수락 ${lim.accept?.used || 0}/${lim.accept?.max || 10}</p>
+      ${activeHtml ? `<h3>진행 중</h3>${activeHtml}` : ""}
+      <h3>받은 도전</h3>
+      ${incomingHtml}
+      ${outgoingHtml ? `<h3>보낸 도전</h3>${outgoingHtml}` : ""}
+      <h3>새 도전</h3>
+      <label class="field">상대 닉네임
+        <input id="rpsPvpTarget" maxlength="12" placeholder="정확한 닉네임" value="${escapeHtml(state.rpsPvpTarget || "")}" list="rpsPvpUsers" />
+      </label>
+      <datalist id="rpsPvpUsers"></datalist>
+      <label class="field compact">베팅 (${minBet}P~보유)
+        <input id="betRpsPvp" type="number" min="${minBet}" max="${maxBet}" value="${state.betRpsPvp}" />
+      </label>
+      ${betControls("betRpsPvp", maxBet, minBet)}
+      <button class="btn accent big" id="rpsPvpChallengeBtn">⚔️ 도전하기</button>
+      <p class="muted center">거절 시 상대가 베팅의 10% 수수료를 냅니다. 수락 후 둘 다 선택(3분).</p>
     `;
   } else if (kind === "fish") {
     const baitOpts = (g.catalogs.baits || [])
@@ -923,6 +1044,7 @@ function openOverlay(kind, meta = null, keepOpen = false) {
 
   const titles = {
     rps: "가위바위보",
+    "rps-pvp": "가위바위보 PVP",
     dice: "주사위",
     fish: "낚시",
     mine: "채굴",
@@ -978,6 +1100,92 @@ function bindOverlay(kind, meta) {
             `오늘 ${data.state.limits.rps.used}/${data.state.limits.rps.max}`;
         } catch {
           arena?.classList.remove("shaking");
+        }
+      };
+    });
+  }
+
+  if (kind === "rps-pvp") {
+    api("/api/users")
+      .then((res) => {
+        const list = overlayEl.querySelector("#rpsPvpUsers");
+        if (!list || !res.users) return;
+        list.innerHTML = res.users
+          .map((u) => `<option value="${escapeHtml(u.nickname)}"></option>`)
+          .join("");
+      })
+      .catch(() => {});
+
+    const targetInput = overlayEl.querySelector("#rpsPvpTarget");
+    if (targetInput) {
+      targetInput.oninput = () => {
+        state.rpsPvpTarget = targetInput.value;
+      };
+    }
+
+    const challengeBtn = overlayEl.querySelector("#rpsPvpChallengeBtn");
+    if (challengeBtn) {
+      challengeBtn.onclick = async () => {
+        const nickname = overlayEl.querySelector("#rpsPvpTarget")?.value?.trim() || "";
+        const bet = Number(overlayEl.querySelector("#betRpsPvp")?.value || state.betRpsPvp);
+        state.rpsPvpTarget = nickname;
+        state.betRpsPvp = bet;
+        try {
+          const data = await act("rps-pvp-challenge", { nickname, bet });
+          showToast((data.log && data.log[0]) || "도전 완료");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* act toast */
+        }
+      };
+    }
+
+    overlayEl.querySelectorAll("[data-pvp-accept]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("rps-pvp-accept", { challengeId: btn.dataset.pvpAccept });
+          showToast((data.log && data.log[0]) || "수락");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-pvp-reject]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("rps-pvp-reject", { challengeId: btn.dataset.pvpReject });
+          showToast((data.log && data.log[0]) || "거절");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-pvp-cancel]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          const data = await act("rps-pvp-cancel", { challengeId: btn.dataset.pvpCancel });
+          showToast((data.log && data.log[0]) || "취소");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* */
+        }
+      };
+    });
+    overlayEl.querySelectorAll("[data-pvp-choice]").forEach((btn) => {
+      btn.onclick = async () => {
+        try {
+          sfx.rps();
+          const data = await act("rps-pvp-choose", {
+            challengeId: btn.dataset.pvpId,
+            choice: btn.dataset.pvpChoice
+          });
+          if (data.meta?.result) sfx.rpsResult(data.meta.result);
+          showToast((data.log && data.log.join(" · ")) || "선택 완료");
+          openOverlay("rps-pvp", null, true);
+        } catch {
+          /* */
         }
       };
     });
@@ -1523,6 +1731,13 @@ function renderPlay() {
       <div>
         <strong>가위바위보</strong>
         <span>오늘 ${g.limits.rps.used}/${g.limits.rps.max}</span>
+      </div>
+    </button>
+    <button class="game-card" data-open="rps-pvp">
+      <div class="game-card-icon">⚔️</div>
+      <div>
+        <strong>가위바위보 PVP</strong>
+        <span>${(g.rpsPvp?.incoming || []).length ? `도전 ${(g.rpsPvp.incoming || []).length}건` : "유저 대결"} · ${(g.rpsPvp?.stats?.wins || 0)}승</span>
       </div>
     </button>
     <button class="game-card" data-open="dice">

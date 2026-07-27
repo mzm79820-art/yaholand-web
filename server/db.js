@@ -15,7 +15,8 @@ function emptyStore() {
     sessions: {},
     players: {},
     purchases: [],
-    lottery: null
+    lottery: null,
+    challenges: {}
   };
 }
 
@@ -41,6 +42,14 @@ function defaultPlayerData() {
     rpsCount: 0,
     rpsWinStreak: 0,
     rpsBestStreak: 0,
+    lastRpsPvpDate: "",
+    lastRpsPvpAcceptDate: "",
+    rpsPvpChallengeCount: 0,
+    rpsPvpAcceptCount: 0,
+    rpsPvpWins: 0,
+    rpsPvpLosses: 0,
+    rpsPvpWinStreak: 0,
+    rpsPvpBestStreak: 0,
     lastDiceDate: "",
     diceCount: 0,
     lastFishDate: "",
@@ -268,6 +277,42 @@ function mutateLottery(mutator) {
   return store.lottery;
 }
 
+function ensureChallenges() {
+  if (!store.challenges || typeof store.challenges !== "object") store.challenges = {};
+}
+
+function listChallenges() {
+  ensureChallenges();
+  return Object.values(store.challenges).filter(Boolean);
+}
+
+function getChallenge(id) {
+  ensureChallenges();
+  return store.challenges[String(id)] || null;
+}
+
+function setChallenge(id, challenge) {
+  ensureChallenges();
+  store.challenges[String(id)] = challenge;
+  save();
+  return challenge;
+}
+
+function deleteChallenge(id) {
+  ensureChallenges();
+  if (store.challenges[String(id)]) {
+    delete store.challenges[String(id)];
+    save();
+  }
+}
+
+function mutateChallenges(mutator) {
+  ensureChallenges();
+  store.challenges = mutator(store.challenges) || store.challenges;
+  save();
+  return store.challenges;
+}
+
 module.exports = {
   defaultPlayerData,
   normalizePlayerData,
@@ -288,5 +333,10 @@ module.exports = {
   setPurchaseStatus,
   getLotteryState,
   setLotteryState,
-  mutateLottery
+  mutateLottery,
+  listChallenges,
+  getChallenge,
+  setChallenge,
+  deleteChallenge,
+  mutateChallenges
 };

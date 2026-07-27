@@ -7,6 +7,14 @@ const RPS_WIN_MULTIPLIER = 1.5;
 const RPS_CHOICES = ["가위", "바위", "보"];
 const RPS_MAX_BET = 100; // MVP: 과도한 올인 방지
 
+/** 가위바위보 PVP */
+const DAILY_RPS_PVP_CHALLENGE_LIMIT = 10;
+const DAILY_RPS_PVP_ACCEPT_LIMIT = 10;
+const RPS_PVP_MIN_BET = 10;
+const RPS_PVP_REJECT_FEE_RATE = 0.1;
+const RPS_PVP_PENDING_MS = 5 * 60 * 1000;
+const RPS_PVP_CHOICE_MS = 3 * 60 * 1000;
+
 const DAILY_DICE_LIMIT = 0; // 0 = 무제한
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const DICE_FEE_RATE = 0.01;
@@ -29,11 +37,12 @@ const DICE_WAVES = [
 ];
 const DICE_BASE_EV = 1.0005; // 기준 배당 기대 배율 (수수료 전)
 const DICE_TIERS = [
-  { key: "beginner", name: "초급", emoji: "🎲", maxBet: 100, unlockCost: 0 },
-  { key: "intermediate", name: "중급", emoji: "🎰", maxBet: 500, unlockCost: 300 },
-  { key: "advanced", name: "고급", emoji: "💎", maxBet: 1000, unlockCost: 800 }
+  { key: "beginner", name: "초급", emoji: "🎲", minBet: 1, maxBet: 100, unlockCost: 0 },
+  { key: "intermediate", name: "중급", emoji: "🎰", minBet: 100, maxBet: 500, unlockCost: 300 },
+  // maxBet 0 = 보유 포인트까지 (상한 없음)
+  { key: "advanced", name: "고급", emoji: "💎", minBet: 500, maxBet: 0, unlockCost: 800 }
 ];
-const DICE_MAX_BET = 1000; // 고급 상한 (호환용)
+const DICE_MAX_BET = 0; // 고급 상한 없음 (호환용)
 
 // 행운당첨(복권) — 매일 21:00 KST 추첨, 구매액의 10% 수수료
 const LOTTERY_FEE_RATE = 0.1;
@@ -250,6 +259,12 @@ module.exports = {
   RPS_WIN_MULTIPLIER,
   RPS_CHOICES,
   RPS_MAX_BET,
+  DAILY_RPS_PVP_CHALLENGE_LIMIT,
+  DAILY_RPS_PVP_ACCEPT_LIMIT,
+  RPS_PVP_MIN_BET,
+  RPS_PVP_REJECT_FEE_RATE,
+  RPS_PVP_PENDING_MS,
+  RPS_PVP_CHOICE_MS,
   DAILY_DICE_LIMIT,
   DICE_FACES,
   DICE_FEE_RATE,
