@@ -138,6 +138,12 @@ const JOB_MAX_LEVEL = 100;
 const JOB_MAX_TIER = 4;
 const SLIME_EXP = 10;
 const SLIME_COST = 10;
+/** 직업 몬스터 훈련 — 비용·경험치·스탯 배수 점진 상승 */
+const JOB_TRAININGS = {
+  slime: { key: "slime", name: "슬라임", emoji: "🟢", cost: 10, exp: 10, statMult: 1 },
+  goblin: { key: "goblin", name: "고블린", emoji: "👺", cost: 100, exp: 80, statMult: 3 },
+  wolf: { key: "wolf", name: "늑대", emoji: "🐺", cost: 1000, exp: 500, statMult: 8 }
+};
 const JOB_CHANGE_PRICE = 100;
 
 const ADVENTURER_RANKS = ["F", "D", "C", "B", "A", "S"];
@@ -182,17 +188,54 @@ const DUNGEON_ITEMS = [
   { key: "knight_boots", name: "기사 장화", emoji: "🥾", slot: "shoes", rarity: "C", power: 4800, sell: 2100 },
   { key: "knight_gloves", name: "기사 장갑", emoji: "🧤", slot: "gloves", rarity: "C", power: 4700, sell: 2050 },
   { key: "ruby_earring", name: "루비 귀걸이", emoji: "♦️", slot: "earring", rarity: "C", power: 5000, sell: 2200 },
-  { key: "forged_blade", name: "강화 명검", emoji: "🔥", slot: "weapon", rarity: "C", power: 1200, sell: 600 }
+  { key: "forged_blade", name: "강화 명검", emoji: "🔥", slot: "weapon", rarity: "C", power: 1200, sell: 600 },
+  // B급 — 던전4~5
+  { key: "obsidian_blade", name: "흑요석 검", emoji: "🗡️", slot: "weapon", rarity: "B", power: 28000, sell: 12000 },
+  { key: "crystal_staff", name: "수정 지팡이", emoji: "🪄", slot: "weapon", rarity: "B", power: 26000, sell: 11000 },
+  { key: "guardian_helm", name: "수호자 투구", emoji: "🪖", slot: "head", rarity: "B", power: 22000, sell: 9500 },
+  { key: "guardian_plate", name: "수호자 갑옷", emoji: "🦺", slot: "top", rarity: "B", power: 24000, sell: 10000 },
+  { key: "guardian_greaves", name: "수호자 각반", emoji: "👖", slot: "bottom", rarity: "B", power: 22000, sell: 9500 },
+  { key: "guardian_boots", name: "수호자 장화", emoji: "🥾", slot: "shoes", rarity: "B", power: 20000, sell: 8500 },
+  { key: "guardian_gauntlets", name: "수호자 건틀릿", emoji: "🧤", slot: "gloves", rarity: "B", power: 19000, sell: 8000 },
+  { key: "sapphire_earring", name: "사파이어 귀걸이", emoji: "💠", slot: "earring", rarity: "B", power: 21000, sell: 9000 },
+  { key: "guardian_ring", name: "수호자 반지", emoji: "💍", slot: "ring", rarity: "B", power: 23000, sell: 9800 },
+  // A급 — 던전6~7
+  { key: "dragon_slayer", name: "용살검", emoji: "⚔️", slot: "weapon", rarity: "A", power: 140000, sell: 60000 },
+  { key: "arcane_orb", name: "비전 오브", emoji: "🔮", slot: "weapon", rarity: "A", power: 130000, sell: 55000 },
+  { key: "hero_crown", name: "영웅의 왕관", emoji: "👑", slot: "head", rarity: "A", power: 110000, sell: 48000 },
+  { key: "hero_armor", name: "영웅의 갑주", emoji: "🛡️", slot: "top", rarity: "A", power: 120000, sell: 52000 },
+  { key: "hero_legs", name: "영웅의 각반", emoji: "👖", slot: "bottom", rarity: "A", power: 110000, sell: 48000 },
+  { key: "hero_boots", name: "영웅의 장화", emoji: "🥾", slot: "shoes", rarity: "A", power: 100000, sell: 43000 },
+  { key: "hero_gloves", name: "영웅의 장갑", emoji: "🧤", slot: "gloves", rarity: "A", power: 95000, sell: 40000 },
+  { key: "emerald_earring", name: "에메랄드 귀걸이", emoji: "💚", slot: "earring", rarity: "A", power: 105000, sell: 45000 },
+  { key: "hero_ring", name: "영웅의 반지", emoji: "💍", slot: "ring", rarity: "A", power: 115000, sell: 50000 },
+  // S급 — 던전8~10
+  { key: "myth_blade", name: "신화의 검", emoji: "✨", slot: "weapon", rarity: "S", power: 700000, sell: 300000 },
+  { key: "void_staff", name: "공허의 지팡이", emoji: "🌑", slot: "weapon", rarity: "S", power: 650000, sell: 280000 },
+  { key: "myth_helm", name: "신화 투구", emoji: "🪖", slot: "head", rarity: "S", power: 550000, sell: 240000 },
+  { key: "myth_armor", name: "신화 갑옷", emoji: "🛡️", slot: "top", rarity: "S", power: 600000, sell: 260000 },
+  { key: "myth_legs", name: "신화 하의", emoji: "👖", slot: "bottom", rarity: "S", power: 550000, sell: 240000 },
+  { key: "myth_boots", name: "신화 장화", emoji: "🥾", slot: "shoes", rarity: "S", power: 500000, sell: 220000 },
+  { key: "myth_gloves", name: "신화 장갑", emoji: "🧤", slot: "gloves", rarity: "S", power: 480000, sell: 210000 },
+  { key: "diamond_earring", name: "다이아 귀걸이", emoji: "💎", slot: "earring", rarity: "S", power: 520000, sell: 230000 },
+  { key: "myth_ring", name: "신화 반지", emoji: "💍", slot: "ring", rarity: "S", power: 580000, sell: 250000 }
 ];
 
-// MVP: 보상·필요 전투력은 웹 초반에 맞게 축소
+// 랭킹(F~C급·전투력) 기준으로 4~10은 B→A→S 장기 성장 루트
 const DUNGEON_LIST = [
   { num: 1, rank: "F", emoji: "🏯", name: "던전1 · 초급 수호탑", hp: 500, armor: 5, reward: [20, 60], exp: 8, needPower: 50, unlockCost: 0, entryFee: 10 },
   { num: 2, rank: "D", emoji: "🏯", name: "던전2 · 견습 수호탑", hp: 2500, armor: 30, reward: [50, 120], exp: 20, needPower: 400, unlockCost: 400, entryFee: 40 },
-  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000, unlockCost: 1000, entryFee: 120 }
+  { num: 3, rank: "C", emoji: "🏰", name: "던전3 · 숙련 수호탑", hp: 20000, armor: 200, reward: [100, 250], exp: 45, needPower: 3000, unlockCost: 1000, entryFee: 120 },
+  { num: 4, rank: "B", emoji: "🗼", name: "던전4 · 정예 수호탑", hp: 90000, armor: 700, reward: [250, 500], exp: 80, needPower: 9000, unlockCost: 3000, entryFee: 350 },
+  { num: 5, rank: "B", emoji: "🗼", name: "던전5 · 정예 요새", hp: 350000, armor: 2500, reward: [500, 1000], exp: 120, needPower: 25000, unlockCost: 8000, entryFee: 800 },
+  { num: 6, rank: "A", emoji: "🏛️", name: "던전6 · 영웅 수호탑", hp: 1200000, armor: 9000, reward: [1000, 2200], exp: 180, needPower: 70000, unlockCost: 20000, entryFee: 2000 },
+  { num: 7, rank: "A", emoji: "🏛️", name: "던전7 · 영웅 성채", hp: 4500000, armor: 30000, reward: [2200, 5000], exp: 260, needPower: 180000, unlockCost: 50000, entryFee: 5000 },
+  { num: 8, rank: "S", emoji: "⚔️", name: "던전8 · 전설 수호탑", hp: 16000000, armor: 100000, reward: [5000, 12000], exp: 380, needPower: 450000, unlockCost: 120000, entryFee: 12000 },
+  { num: 9, rank: "S", emoji: "⚔️", name: "던전9 · 전설 요새", hp: 60000000, armor: 350000, reward: [12000, 28000], exp: 520, needPower: 1100000, unlockCost: 300000, entryFee: 30000 },
+  { num: 10, rank: "S", emoji: "🌟", name: "던전10 · 신화 수호탑", hp: 220000000, armor: 1200000, reward: [30000, 70000], exp: 700, needPower: 2800000, unlockCost: 800000, entryFee: 80000 }
 ];
 
-const DUNGEON_ITEM_DROP_RATE = { F: 0.4, D: 0.32, C: 0.26 };
+const DUNGEON_ITEM_DROP_RATE = { F: 0.4, D: 0.32, C: 0.26, B: 0.22, A: 0.18, S: 0.14 };
 
 const DAILY_MINE_LIMIT = 0; // 0 = 무제한
 const MINE_COOLDOWN_MS = 0;
@@ -315,6 +358,7 @@ module.exports = {
   JOB_MAX_TIER,
   SLIME_EXP,
   SLIME_COST,
+  JOB_TRAININGS,
   JOB_CHANGE_PRICE,
   ADVENTURER_RANKS,
   DAILY_DUNGEON_LIMIT,

@@ -193,6 +193,7 @@ function publicState(user, point, data) {
       trainCost: C.TRAIN_COST,
       walkCost: C.WALK_COST,
       slimeCost: C.SLIME_COST,
+      jobTrainings: Object.values(C.JOB_TRAININGS),
       jobChangePrice: C.JOB_CHANGE_PRICE,
       bank: C.BANK
     }

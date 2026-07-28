@@ -11,7 +11,13 @@ function ensureDungeon(data) {
   }
   if (!data.dungeonTowerHp) data.dungeonTowerHp = {};
   if (!data.unlockedDungeons || typeof data.unlockedDungeons !== "object") {
-    data.unlockedDungeons = { "1": true, "2": false, "3": false };
+    data.unlockedDungeons = {};
+  }
+  for (const d of C.DUNGEON_LIST) {
+    const key = String(d.num);
+    if (data.unlockedDungeons[key] == null) {
+      data.unlockedDungeons[key] = (d.unlockCost || 0) <= 0;
+    }
   }
   data.unlockedDungeons["1"] = true;
 }
@@ -105,6 +111,9 @@ function attackDungeon(point, data, num) {
 
   if (data.dungeonClears >= 10 && data.adventurerRank === "F") data.adventurerRank = "D";
   if (data.dungeonClears >= 40 && data.adventurerRank === "D") data.adventurerRank = "C";
+  if (data.dungeonClears >= 100 && data.adventurerRank === "C") data.adventurerRank = "B";
+  if (data.dungeonClears >= 200 && data.adventurerRank === "B") data.adventurerRank = "A";
+  if (data.dungeonClears >= 400 && data.adventurerRank === "A") data.adventurerRank = "S";
 
   log.push(`모험가 ${data.adventurerRank} · 파괴 ${data.dungeonClears}회 · 잔액 ${point}P`);
   return { ok: true, point, data, log, meta: { entryFee, dungeonNum: dungeon.num, cleared: true, reward } };

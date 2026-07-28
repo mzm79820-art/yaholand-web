@@ -20,7 +20,7 @@ function chooseJob(point, data, jobKey) {
       ok: true,
       point,
       data,
-      log: [`${job.emoji} ${job.name} 전직 완료!`, `슬라임 훈련으로 성장하세요.`]
+      log: [`${job.emoji} ${job.name} 전직 완료!`, `몬스터 훈련으로 성장하세요.`]
     };
   }
 
@@ -58,18 +58,22 @@ function buyJobChange(point, data) {
   };
 }
 
-function trainSlime(point, data) {
+function trainMonster(point, data, trainingKey = "slime") {
   ensureJobStats(data);
   if (!data.job) return { ok: false, error: "먼저 직업을 선택하세요." };
-  if (point < C.SLIME_COST) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
 
-  point -= C.SLIME_COST;
+  const training = C.JOB_TRAININGS[trainingKey] || C.JOB_TRAININGS.slime;
+  if (!training) return { ok: false, error: "없는 훈련입니다." };
+  if (point < training.cost) return { ok: false, error: "포인트가 없습니다.", code: "NO_POINT" };
+
+  point -= training.cost;
   const growth = C.JOB_STAT_GROWTH[data.job] || { str: 0, dex: 0, int: 0, wis: 0 };
+  const mult = training.statMult || 1;
   for (const k of Object.keys(growth)) {
-    data.jobStats[k] = (data.jobStats[k] || 0) + growth[k];
+    data.jobStats[k] = (data.jobStats[k] || 0) + growth[k] * mult;
   }
 
-  const leveled = addExp(data.jobLevel, data.jobExp, C.SLIME_EXP, C.JOB_MAX_LEVEL, C.LEVEL_EXP);
+  const leveled = addExp(data.jobLevel, data.jobExp, training.exp, C.JOB_MAX_LEVEL, C.LEVEL_EXP);
   const prev = data.jobLevel;
   data.jobLevel = leveled.level;
   data.jobExp = leveled.exp;
@@ -77,7 +81,7 @@ function trainSlime(point, data) {
 
   const job = jobByKey(data.job);
   const gainText = C.STAT_DEFS.filter((s) => growth[s.key])
-    .map((s) => `${s.emoji}${s.name}+${growth[s.key]}`)
+    .map((s) => `${s.emoji}${s.name}+${growth[s.key] * mult}`)
     .join(" ");
 
   return {
@@ -85,14 +89,19 @@ function trainSlime(point, data) {
     point,
     data,
     log: [
-      `${job.emoji} 슬라임 훈련! (-${C.SLIME_COST}P)`,
+      `${training.emoji} ${training.name} 훈련! (-${training.cost}P)`,
       gainText || "스탯 변동 없음",
-      `직업 EXP +${C.SLIME_EXP}`,
+      `직업 EXP +${training.exp}`,
       ...leveled.lines,
       prev !== data.jobLevel ? `직업 Lv.${data.jobLevel}` : `직업 Lv.${data.jobLevel} (EXP ${data.jobExp})`,
       `잔액 ${point}P`
-    ]
+    ],
+    meta: { training: training.key, cost: training.cost, exp: training.exp }
   };
 }
 
-module.exports = { chooseJob, buyJobChange, trainSlime };
+function trainSlime(point, data) {
+  return trainMonster(point, data, "slime");
+}
+
+module.exports = { chooseJob, buyJobChange, trainSlime, trainMonster };

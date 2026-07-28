@@ -33,6 +33,7 @@ const ACTION_TO_TYPE = {
   "pet-walk": "walk",
   "pet-train": "train",
   "job-slime": "slime",
+  "job-train": "slime",
   "sword-start": "sword",
   "sword-enhance": "sword"
 };

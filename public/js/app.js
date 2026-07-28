@@ -2307,7 +2307,15 @@ function renderJob() {
       </div>
       <h3 class="stat-title">능력치</h3>
       <div class="stat-grid">${stats}</div>
-      <button class="btn accent" id="slimeBtn">슬라임 훈련 (${g.catalogs.slimeCost}P)</button>
+      <div class="stack" style="margin-top:8px">
+        ${(g.catalogs.jobTrainings || [
+          { key: "slime", name: "슬라임", cost: g.catalogs.slimeCost || 10 },
+          { key: "goblin", name: "고블린", cost: 100 },
+          { key: "wolf", name: "늑대", cost: 1000 }
+        ]).map((t) => `
+          <button class="btn accent" data-job-train="${t.key}">${t.emoji || ""} ${t.name} 훈련 (${t.cost}P)</button>
+        `).join("")}
+      </div>
     </div>
     ${skill ? `
     <div class="panel stack">
@@ -2365,7 +2373,7 @@ function renderDungeon() {
       <h2>던전</h2>
       <p>모험가 ${g.dungeon.rank} · 전투력 ${g.dungeon.power} · 파괴 ${g.dungeon.clears}회</p>
       <p class="muted" style="margin-top:6px">횟수 제한 없이 도전할 수 있고, 공격마다 난이도별 입장료가 듭니다.</p>
-      <p class="muted" style="margin-top:4px">던전2·3은 포인트로 개방해야 입장할 수 있습니다.</p>
+      <p class="muted" style="margin-top:4px">던전2 이상은 포인트로 개방해야 입장할 수 있습니다.</p>
       <div class="list" style="margin-top:10px">${towers}</div>
     </div>
     <div class="panel"><p>획득한 장비와 아바타는 하단 <b>가방</b> 탭에서 관리하세요.</p></div>
@@ -2597,8 +2605,9 @@ function bindCommon() {
   document.querySelectorAll("[data-job]").forEach((btn) => {
     btn.onclick = async () => setGame(await act("job-choose", { job: btn.dataset.job }));
   });
-  const slimeBtn = document.getElementById("slimeBtn");
-  if (slimeBtn) slimeBtn.onclick = async () => setGame(await act("job-slime"));
+  document.querySelectorAll("[data-job-train]").forEach((btn) => {
+    btn.onclick = async () => setGame(await act("job-train", { monster: btn.dataset.jobTrain }));
+  });
   const jobSkillBtn = document.getElementById("jobSkillBtn");
   if (jobSkillBtn) {
     jobSkillBtn.onclick = async () => {

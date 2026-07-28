@@ -18,7 +18,7 @@ const {
 const { playDice, unlockDiceTier } = require("./game/dice");
 const { buyBait, fish } = require("./game/fish");
 const { adoptPet, walkPet, trainPet, buyPetFood, feedPet } = require("./game/pet");
-const { chooseJob, buyJobChange, trainSlime } = require("./game/job");
+const { chooseJob, buyJobChange, trainSlime, trainMonster } = require("./game/job");
 const { attackDungeon, unlockDungeon, equipItem, unequipItem, sellItem, enrichItems, enrichEquips } = require("./game/dungeon");
 const { useJobSkill } = require("./game/jobSkills");
 const { startSword, enhanceSword, continueSword, claimSword } = require("./game/sword");
@@ -145,6 +145,7 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "job-choose": (p, d) => chooseJob(p, d, body.job),
     "job-change-ticket": (p, d) => buyJobChange(p, d),
     "job-slime": (p, d) => trainSlime(p, d),
+    "job-train": (p, d) => trainMonster(p, d, body.monster || "slime"),
     "job-skill": (p, d) => useJobSkill(req.user, p, d, body),
     "dungeon-attack": (p, d) => attackDungeon(p, d, body.num),
     "dungeon-unlock": (p, d) => unlockDungeon(p, d, body.num),
