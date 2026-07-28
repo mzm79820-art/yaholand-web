@@ -15,6 +15,8 @@ const state = {
   bait: "basic",
   overlay: null,
   selectedSeed: null,
+  attendMonth: null,
+  attendJustChecked: false,
   chat: [],
   online: [],
   ranking: null
@@ -32,6 +34,8 @@ const bgmNextBtn = document.getElementById("bgmNextBtn");
 const notifyBtn = document.getElementById("notifyBtn");
 const notifyBadge = document.getElementById("notifyBadge");
 const notifyPanel = document.getElementById("notifyPanel");
+const attendBtn = document.getElementById("attendBtn");
+const attendBadge = document.getElementById("attendBadge");
 
 const BGM_MUTE_KEY = "yl_bgm_muted";
 const BGM_TRACKS = [
@@ -737,7 +741,9 @@ function showAuth() {
   hudEl.classList.add("hidden");
   navEl.classList.add("hidden");
   if (notifyBtn) notifyBtn.classList.add("hidden");
+  if (attendBtn) attendBtn.classList.add("hidden");
   updateNotifyBadge();
+  updateAttendBadge();
   const mode = state.authMode;
   appEl.innerHTML = `
     <div class="auth-hero">
@@ -1329,6 +1335,8 @@ function openOverlay(kind, meta = null, keepOpen = false) {
       <button class="btn accent big" id="dungeonAttackBtn" data-dun-num="${tower.num || 1}">⚔️ 공격하기 (입장료 ${tower.entryFee || 0}P)</button>
     `;
     }
+  } else if (kind === "attendance") {
+    body = renderAttendanceOverlay(g);
   }
 
   const titles = {
@@ -1340,7 +1348,8 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     sword: "검 강화",
     lottery: "행운당첨",
     farm: "농사",
-    dungeon: "던전"
+    dungeon: "던전",
+    attendance: "출석 체크"
   };
 
   overlayEl.innerHTML = `
@@ -1788,6 +1797,38 @@ function bindOverlay(kind, meta) {
       };
     }
   }
+
+  if (kind === "attendance") {
+    overlayEl.querySelector("#attendPrevMonth")?.addEventListener("click", () => {
+      shiftAttendMonth(-1);
+      openOverlay("attendance", null, true);
+    });
+    overlayEl.querySelector("#attendNextMonth")?.addEventListener("click", () => {
+      shiftAttendMonth(1);
+      openOverlay("attendance", null, true);
+    });
+    const checkBtn = overlayEl.querySelector("#attendCheckBtn");
+    if (checkBtn) {
+      checkBtn.onclick = async () => {
+        checkBtn.disabled = true;
+        try {
+          const data = await act("attendance-check");
+          state.attendJustChecked = true;
+          setGame(data);
+          openOverlay("attendance", null, true);
+          const log = overlayEl.querySelector("#attendLog");
+          if (log) log.textContent = (data.log || []).join("\n");
+          showToast((data.log && data.log[0]) || "출석 완료!");
+          setTimeout(() => {
+            state.attendJustChecked = false;
+          }, 900);
+        } catch (ex) {
+          checkBtn.disabled = false;
+          showToast(ex.message || "출석 실패");
+        }
+      };
+    }
+  }
 }
 
 function applyRpsVisual(meta, animate) {
@@ -1929,6 +1970,7 @@ function updateNotifyBadge() {
   if (!state.game) {
     notifyBtn.classList.add("hidden");
     notifyBadge.classList.add("hidden");
+    updateAttendBadge();
     return;
   }
   notifyBtn.classList.remove("hidden");
@@ -1938,6 +1980,94 @@ function updateNotifyBadge() {
   } else {
     notifyBadge.classList.add("hidden");
   }
+  updateAttendBadge();
+}
+
+function updateAttendBadge() {
+  if (!attendBtn || !attendBadge) return;
+  if (!state.game) {
+    attendBtn.classList.add("hidden");
+    attendBadge.classList.add("hidden");
+    return;
+  }
+  attendBtn.classList.remove("hidden");
+  const need = !state.game.attendance?.checkedToday;
+  attendBtn.classList.toggle("need-check", need);
+  if (need) attendBadge.classList.remove("hidden");
+  else attendBadge.classList.add("hidden");
+}
+
+function shiftAttendMonth(delta) {
+  if (!state.attendMonth) return;
+  let { y, m } = state.attendMonth;
+  m += delta;
+  if (m < 1) {
+    m = 12;
+    y -= 1;
+  } else if (m > 12) {
+    m = 1;
+    y += 1;
+  }
+  state.attendMonth = { y, m };
+}
+
+function renderAttendanceOverlay(g) {
+  const a = g.attendance || {};
+  const today = a.today || "";
+  const [ty, tm] = today ? today.split("-").map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1];
+  if (!state.attendMonth) state.attendMonth = { y: ty, m: tm };
+  const { y, m } = state.attendMonth;
+  const checked = new Set(a.dates || []);
+  const firstDow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const cells = [];
+  for (let i = 0; i < firstDow; i += 1) cells.push(`<div class="attend-cell empty"></div>`);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const key = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const isChecked = checked.has(key);
+    const isToday = key === today;
+    const isFuture = today && key > today;
+    const stampClass = isChecked && isToday && state.attendJustChecked ? " stamp-pop" : "";
+    cells.push(`
+      <div class="attend-cell ${isToday ? "today" : ""} ${isChecked ? "checked" : ""} ${isFuture ? "future" : ""}">
+        <span class="attend-day">${day}</span>
+        ${isChecked ? `<span class="attend-stamp${stampClass}" aria-hidden="true">출석</span>` : ""}
+      </div>
+    `);
+  }
+  const progress = a.progress || 0;
+  const streakDays = a.streakDays || 7;
+  const dots = Array.from({ length: streakDays }, (_, i) => {
+    const filled = i < progress;
+    return `<span class="attend-dot ${filled ? "on" : ""}">${filled ? "✓" : i + 1}</span>`;
+  }).join("");
+  const checkBtn = a.checkedToday
+    ? `<button class="btn ghost big" disabled>오늘 출석 완료</button>`
+    : `<button class="btn accent big" id="attendCheckBtn">📅 오늘 출석하기 (+${a.dailyReward || 50}P)</button>`;
+
+  return `
+    <div class="attend-panel">
+      <div class="attend-summary">
+        <div><span class="muted">연속 출석</span><b>${a.streak || 0}일</b></div>
+        <div><span class="muted">총 출석</span><b>${a.totalChecks || 0}회</b></div>
+      </div>
+      <div class="attend-cycle">
+        <p class="muted">${streakDays}일 연속 시 +${a.streakReward || 350}P · 다음 보상까지 ${a.checkedToday && progress === streakDays ? streakDays : a.nextBonusIn || streakDays}일</p>
+        <div class="attend-dots">${dots}</div>
+      </div>
+      <div class="attend-cal-head">
+        <button type="button" class="btn ghost" id="attendPrevMonth">‹</button>
+        <strong>${y}년 ${m}월</strong>
+        <button type="button" class="btn ghost" id="attendNextMonth">›</button>
+      </div>
+      <div class="attend-weekdays">
+        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+      </div>
+      <div class="attend-grid">${cells.join("")}</div>
+      ${checkBtn}
+      <div class="result-panel" id="attendLog">매일 출석 +${a.dailyReward || 50}P · ${streakDays}일마다 +${a.streakReward || 350}P</div>
+    </div>
+  `;
 }
 
 function closeNotifyPanel() {
@@ -2781,6 +2911,20 @@ if (notifyBtn && !notifyBtn.dataset.bound) {
   notifyBtn.onclick = () => {
     if (notifyPanel && !notifyPanel.classList.contains("hidden")) closeNotifyPanel();
     else openNotifyPanel();
+  };
+}
+
+if (attendBtn && !attendBtn.dataset.bound) {
+  attendBtn.dataset.bound = "1";
+  attendBtn.onclick = () => {
+    if (!state.game) return;
+    closeNotifyPanel();
+    const today = state.game.attendance?.today;
+    if (today) {
+      const [y, m] = today.split("-").map(Number);
+      state.attendMonth = { y, m };
+    }
+    openOverlay("attendance");
   };
 }
 

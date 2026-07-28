@@ -4,7 +4,37 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1a3a2f" />
-  <title>야호랜드</title>
+
+  <!-- SEO -->
+  <title>야호랜드 | 웹게임 플랫폼</title>
+  <meta name="description" content="다양한 웹게임을 무료로 즐길 수 있는 야호랜드" />
+  <meta name="keywords" content="야호랜드, 웹게임, 온라인게임, 가위바위보, 주사위, 던전, 펫" />
+  <meta name="author" content="야호랜드" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://www.yaho.io.kr/" />
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <!-- Open Graph (카카오톡 · 디스코드 등) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="야호랜드" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:url" content="https://www.yaho.io.kr/" />
+  <meta property="og:title" content="야호랜드 | 웹게임 플랫폼" />
+  <meta property="og:description" content="다양한 웹게임을 무료로 즐길 수 있는 야호랜드" />
+  <meta property="og:image" content="https://www.yaho.io.kr/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="야호랜드 웹게임 플랫폼" />
+
+  <!-- Twitter / Discord card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="야호랜드 | 웹게임 플랫폼" />
+  <meta name="twitter:description" content="다양한 웹게임을 무료로 즐길 수 있는 야호랜드" />
+  <meta name="twitter:image" content="https://www.yaho.io.kr/og-image.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
@@ -19,6 +49,10 @@
           <span id="notifyBadge" class="notify-badge hidden">0</span>
         </button>
         <div class="brand">야호랜드</div>
+        <button type="button" id="attendBtn" class="attend-btn hidden" aria-label="출석 체크" title="출석 체크">
+          출첵
+          <span id="attendBadge" class="attend-badge hidden"></span>
+        </button>
       </div>
       <div class="top-right">
         <div class="bgm-ctrl">
@@ -55,6 +89,6 @@
       <button data-tab="bag">가방</button>
     </nav>
   </div>
-  <script src="/js/app.js?v=dungeon4"></script>
+  <script src="/js/app.js?v=attend1"></script>
 </body>
 </html>

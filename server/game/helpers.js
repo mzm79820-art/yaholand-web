@@ -161,6 +161,7 @@ function publicState(user, point, data) {
     farm: require("./farm").getFarmView(data),
     rpsPvp: require("./rpsPvp").getRpsPvpView(user.id, data),
     notifications: require("./farm").getNotificationsView(data),
+    attendance: require("./attendance").getAttendanceView(data),
     status: {
       wantedBounty: data.wantedBounty || 0,
       cursed: (data.curseUntil || 0) > Date.now(),

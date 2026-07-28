@@ -106,7 +106,8 @@ function defaultPlayerData() {
       cropSeq: 0
     },
     notifications: [],
-    notifySeq: 0
+    notifySeq: 0,
+    attendanceDates: []
   };
 }
 
@@ -135,6 +136,7 @@ function normalizePlayerData(raw) {
   if (!Array.isArray(data.farm.plots)) data.farm.plots = [];
   if (!Array.isArray(data.farm.crops)) data.farm.crops = [];
   if (!Array.isArray(data.notifications)) data.notifications = [];
+  if (!Array.isArray(data.attendanceDates)) data.attendanceDates = [];
   return data;
 }
 

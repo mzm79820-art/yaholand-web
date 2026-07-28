@@ -33,6 +33,7 @@ const {
   markNotificationsRead
 } = require("./game/farm");
 const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
+const { checkAttendance } = require("./game/attendance");
 const { attachChat, broadcastActivity } = require("./chat");
 const { formatActivity } = require("./activityFeed");
 const { createPurchaseRequest } = require("./purchase");
@@ -164,7 +165,8 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "farm-water": (p, d) => waterPlot(p, d, body.plotIndex),
     "farm-harvest": (p, d) => harvestPlot(p, d, body.plotIndex),
     "farm-sell": (p, d) => sellCrop(p, d, body.cropId),
-    "notifications-read": (p, d) => markNotificationsRead(p, d)
+    "notifications-read": (p, d) => markNotificationsRead(p, d),
+    "attendance-check": (p, d) => checkAttendance(p, d)
   };
 
   const fn = handlers[name];

@@ -101,6 +101,10 @@ function formatActivity(user, action, result, body = {}) {
       const t = C.JOB_TRAININGS[body.monster || meta.training || "slime"];
       return t ? `${t.emoji} ${n}님 ${t.name} 훈련을 했습니다` : `💪 ${n}님 직업 훈련을 했습니다`;
     }
+    case "attendance-check": {
+      const bonus = meta.streakBonus ? ` · ${C.ATTENDANCE_STREAK_DAYS}일 연속 +${meta.streakReward}P` : "";
+      return `📅 ${n}님 출석 체크! +${meta.dailyReward || C.ATTENDANCE_DAILY_REWARD}P${bonus}`;
+    }
     case "job-skill": {
       const job = C.JOBS.find((j) => j.key === result.data?.job);
       const skillName = job ? (C.JOB_SKILLS[job.key]?.name || "스킬") : "스킬";
