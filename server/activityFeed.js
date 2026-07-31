@@ -43,6 +43,12 @@ function formatActivity(user, action, result, body = {}) {
       return `🔓 ${n}님 던전${meta.dungeonNum || ""}을(를) 개방했습니다`;
     case "fish": {
       const fish = meta.fish;
+      if (meta.isTheme && fish) {
+        return `🏆 ${n}님 시즌 대어 ${fish.emoji} ${fish.name}! (+${meta.sell || 0}P)`;
+      }
+      if (fish && fish.rarity >= 4) {
+        return `🎣✨ ${n}님 희귀어 ${fish.emoji} ${fish.name}! (+${meta.sell || 0}P)`;
+      }
       if (fish) return `🎣 ${n}님 ${fish.emoji} ${fish.name} 낚시 성공! (+${meta.sell || 0}P)`;
       return `🎣 ${n}님 낚시 완료`;
     }
@@ -119,6 +125,21 @@ function formatActivity(user, action, result, body = {}) {
               ? ` (+${meta.bounty}P)`
               : "";
       return `${job?.emoji || "✨"} ${n}님 ${skillName}${target} ${ok}${extra}`;
+    }
+
+    case "boss-attack": {
+      const bar = meta.bar || "";
+      if (meta.cleared) {
+        return `💥 ${n}님 막타! ${meta.bossEmoji || "👾"} Lv.${meta.bossLevel} 토벌! → 다음 보스 등장`;
+      }
+      return `${meta.bossEmoji || "👾"} ${n}님 보스 공격 ⚔️${meta.damage || "?"} · ${bar}`;
+    }
+    case "boss-skill": {
+      if (meta.cleared) {
+        return `💥 ${n}님 스킬 막타! ${meta.bossEmoji || "👾"} 보스 토벌!`;
+      }
+      if (meta.success === false) return `${meta.bossEmoji || "👾"} ${n}님 보스 ${meta.skill || "스킬"} 실패`;
+      return `${meta.bossEmoji || "👾"} ${n}님 보스 ${meta.skill || "스킬"}! ⚔️${meta.damage || "?"} · ${meta.bar || ""}`;
     }
 
     case "buy-bait": {

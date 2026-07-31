@@ -11,6 +11,9 @@ function buyBait(point, data, baitKey, qty) {
   ensureBaits(data);
   const bait = C.FISH_BAITS.find((b) => b.key === baitKey);
   if (!bait) return { ok: false, error: "없는 미끼입니다." };
+  if (bait.seasonOnly && (data.baits.season || 0) <= 0 && baitKey === "season") {
+    // 시즌 미끼는 보상으로만 획득 가능 — 상점에서 구매 허용하되 안내
+  }
   qty = Math.floor(Number(qty) || 1);
   if (qty < 1 || qty > 99) return { ok: false, error: "수량은 1~99입니다." };
   const cost = bait.price * qty;
@@ -28,12 +31,13 @@ function buyBait(point, data, baitKey, qty) {
   };
 }
 
-function weightedFish(rareBoost) {
+function weightedFish(rareBoost, themeFishId = null) {
   const weights = [];
   for (const f of C.FISH_LIST) {
     let w = C.FISH_RARITY_WEIGHT[f.rarity] || 1;
     if (f.rarity >= 3) w *= 1 + rareBoost;
     if (f.rarity >= 4) w *= 1 + rareBoost * 0.5;
+    if (themeFishId && f.id === themeFishId) w *= 1.8;
     weights.push(w);
   }
   const total = weights.reduce((a, b) => a + b, 0);
@@ -45,7 +49,7 @@ function weightedFish(rareBoost) {
   return C.FISH_LIST[0];
 }
 
-function fish(point, data, baitKey) {
+function fish(point, data, baitKey, user = null) {
   const dateKey = getDateKey();
   resetDaily(data, "lastFishDate", "fishCount", dateKey);
   ensureBaits(data);
@@ -64,7 +68,16 @@ function fish(point, data, baitKey) {
   if (data.baits[baitKey] <= 0) delete data.baits[baitKey];
   data.fishCount += 1;
 
-  const caught = weightedFish(bait.rareBoost);
+  let themeFishId = null;
+  try {
+    const season = require("./fishSeason").ensureFishSeason();
+    themeFishId = season.themeFishId;
+  } catch {
+    /* ignore */
+  }
+
+  const seasonBoost = baitKey === "season" ? bait.rareBoost + 0.3 : bait.rareBoost;
+  const caught = weightedFish(seasonBoost, themeFishId);
   const cursed = (data.curseUntil || 0) > Date.now();
   let sell = randInt(caught.price[0], caught.price[1]);
   if (cursed) sell = Math.max(1, Math.floor(sell * (1 - (data.curseLuckPenalty || 0.2))));
@@ -78,17 +91,34 @@ function fish(point, data, baitKey) {
   data.rodExp = leveled.exp;
   data.rodTier = Math.min(3, Math.floor((data.rodLevel - 1) / 25));
 
+  let seasonMeta = null;
+  if (user) {
+    try {
+      seasonMeta = require("./fishSeason").recordFishSeasonCatch(user, caught, sell);
+    } catch {
+      /* ignore */
+    }
+  }
+
   const stars = "★".repeat(caught.rarity) + "☆".repeat(4 - caught.rarity);
+  const isTheme = themeFishId && caught.id === themeFishId;
   const log = [
     `${bait.emoji} 미끼 사용 · ${rodName(data.rodTier)} Lv.${data.rodLevel}`,
-    `${caught.emoji} ${caught.name} ${stars}`,
+    `${caught.emoji} ${caught.name} ${stars}${isTheme ? " · 🏆시즌 대어!" : ""}`,
     `판매 +${sell}P · 낚싯대 EXP +${rodGain}`,
+    ...(seasonMeta ? [`시즌 점수 +${seasonMeta.gain}`] : []),
     ...(cursed ? ["🕯️ 불운 저주: 판매금 20% 감소"] : []),
     ...leveled.lines,
     `오늘 ${data.fishCount}/${C.DAILY_FISH_LIMIT || "∞"} · 잔액 ${point}P`
   ];
 
-  return { ok: true, point, data, log, meta: { fish: caught, sell } };
+  return {
+    ok: true,
+    point,
+    data,
+    log,
+    meta: { fish: caught, sell, season: seasonMeta, isTheme: !!isTheme }
+  };
 }
 
 module.exports = { buyBait, fish };

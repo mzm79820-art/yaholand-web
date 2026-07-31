@@ -3,7 +3,7 @@ const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const { register, login, destroySession, getUserByToken, authMiddleware } = require("./auth");
-const { getPlayer, savePlayer, listUsers, listPointRanking } = require("./db");
+const { getPlayer, savePlayer, listUsers, listPointRanking, listPowerRanking } = require("./db");
 const { publicState } = require("./game/helpers");
 const { playRps } = require("./game/rps");
 const {
@@ -34,6 +34,8 @@ const {
 } = require("./game/farm");
 const { trackQuestAction, claimQuest, claimQuestBonus } = require("./game/quests");
 const { checkAttendance } = require("./game/attendance");
+const { attackBoss, bossSkill } = require("./game/boss");
+const { listFishSeasonRanking } = require("./game/fishSeason");
 const { attachChat, broadcastActivity } = require("./chat");
 const { formatActivity } = require("./activityFeed");
 const { createPurchaseRequest } = require("./purchase");
@@ -135,7 +137,7 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "rps-pvp-choose": (p, d) => chooseRpsPvp(req.user, p, d, body),
     dice: (p, d) => playDice(p, d, body.bet, body.tier || "beginner"),
     "dice-unlock": (p, d) => unlockDiceTier(p, d, body.tier),
-    fish: (p, d) => fish(p, d, body.bait),
+    fish: (p, d) => fish(p, d, body.bait, req.user),
     mine: (p, d) => mine(req.user.id, p, d),
     "buy-bait": (p, d) => buyBait(p, d, body.bait, body.qty),
     "pet-adopt": (p, d) => adoptPet(p, d, body.name),
@@ -148,6 +150,8 @@ app.post("/api/action/:name", authMiddleware, (req, res) => {
     "job-slime": (p, d) => trainSlime(p, d),
     "job-train": (p, d) => trainMonster(p, d, body.monster || "slime"),
     "job-skill": (p, d) => useJobSkill(req.user, p, d, body),
+    "boss-attack": (p, d) => attackBoss(req.user, p, d),
+    "boss-skill": (p, d) => bossSkill(req.user, p, d),
     "dungeon-attack": (p, d) => attackDungeon(p, d, body.num),
     "dungeon-unlock": (p, d) => unlockDungeon(p, d, body.num),
     "dungeon-equip": (p, d) => equipItem(p, d, body.bagIndex, body.slotKey),
@@ -235,8 +239,17 @@ app.get("/api/pvp-invite/:code", (req, res) => {
 
 app.get("/api/ranking", authMiddleware, (req, res) => {
   try {
+    const type = String(req.query.type || "point");
+    if (type === "power") {
+      const ranking = listPowerRanking(20, req.user.id);
+      return res.json({ ok: true, type: "power", ...ranking });
+    }
+    if (type === "fish") {
+      const ranking = listFishSeasonRanking(20, req.user.id);
+      return res.json({ ok: true, type: "fish", ...ranking });
+    }
     const ranking = listPointRanking(20, req.user.id);
-    res.json({ ok: true, ...ranking });
+    res.json({ ok: true, type: "point", ...ranking });
   } catch (e) {
     console.error("[ranking]", e?.message || e);
     res.status(500).json({ ok: false, error: "랭킹을 불러오지 못했습니다." });

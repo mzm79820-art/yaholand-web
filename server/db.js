@@ -16,7 +16,9 @@ function emptyStore() {
     players: {},
     purchases: [],
     lottery: null,
-    challenges: {}
+    challenges: {},
+    bossRaid: null,
+    fishSeason: null
   };
 }
 
@@ -107,7 +109,12 @@ function defaultPlayerData() {
     },
     notifications: [],
     notifySeq: 0,
-    attendanceDates: []
+    attendanceDates: [],
+    titles: [],
+    skins: {},
+    activeTitle: null,
+    activeFrame: null,
+    activeChatSkin: null
   };
 }
 
@@ -137,6 +144,8 @@ function normalizePlayerData(raw) {
   if (!Array.isArray(data.farm.crops)) data.farm.crops = [];
   if (!Array.isArray(data.notifications)) data.notifications = [];
   if (!Array.isArray(data.attendanceDates)) data.attendanceDates = [];
+  if (!Array.isArray(data.titles)) data.titles = [];
+  if (!data.skins || typeof data.skins !== "object") data.skins = {};
   return data;
 }
 
@@ -166,7 +175,9 @@ function listPointRanking(limit = 20, meUserId = null) {
       nickname: u.nickname,
       point: Math.floor(Number(player?.point) || 0),
       job: player?.data?.job || null,
-      adventurerRank: player?.data?.adventurerRank || "F"
+      adventurerRank: player?.data?.adventurerRank || "F",
+      activeTitle: player?.data?.activeTitle || null,
+      titles: player?.data?.titles || []
     };
   });
   rows.sort((a, b) => b.point - a.point || a.id - b.id);
@@ -177,6 +188,7 @@ function listPointRanking(limit = 20, meUserId = null) {
     point: r.point,
     job: r.job,
     adventurerRank: r.adventurerRank,
+    title: (r.titles || []).find((t) => t.key === r.activeTitle) || null,
     isMe: meUserId != null && r.id === meUserId
   }));
 
@@ -192,12 +204,88 @@ function listPointRanking(limit = 20, meUserId = null) {
         point: r.point,
         job: r.job,
         adventurerRank: r.adventurerRank,
+        title: (r.titles || []).find((t) => t.key === r.activeTitle) || null,
         isMe: true,
         inTop: idx < top.length
       };
     }
   }
   return { top, me, total: rows.length };
+}
+
+/** 전투력 내림차순 랭킹 */
+function listPowerRanking(limit = 20, meUserId = null) {
+  const { combatPower } = require("./game/helpers");
+  const rows = (store.users || []).map((u) => {
+    const player = store.players[String(u.id)];
+    const data = normalizePlayerData(player?.data);
+    return {
+      id: u.id,
+      nickname: u.nickname,
+      power: combatPower(data),
+      point: Math.floor(Number(player?.point) || 0),
+      job: data.job || null,
+      adventurerRank: data.adventurerRank || "F",
+      activeTitle: data.activeTitle || null,
+      titles: data.titles || [],
+      petLevel: data.pet ? data.petLevel || 1 : 0
+    };
+  });
+  rows.sort((a, b) => b.power - a.power || a.id - b.id);
+  const top = rows.slice(0, Math.max(1, Math.min(100, Number(limit) || 20))).map((r, i) => ({
+    rank: i + 1,
+    id: r.id,
+    nickname: r.nickname,
+    power: r.power,
+    point: r.point,
+    job: r.job,
+    adventurerRank: r.adventurerRank,
+    petLevel: r.petLevel,
+    title: (r.titles || []).find((t) => t.key === r.activeTitle) || null,
+    isMe: meUserId != null && r.id === meUserId
+  }));
+
+  let me = null;
+  if (meUserId != null) {
+    const idx = rows.findIndex((r) => r.id === meUserId);
+    if (idx >= 0) {
+      const r = rows[idx];
+      me = {
+        rank: idx + 1,
+        id: r.id,
+        nickname: r.nickname,
+        power: r.power,
+        point: r.point,
+        job: r.job,
+        adventurerRank: r.adventurerRank,
+        petLevel: r.petLevel,
+        title: (r.titles || []).find((t) => t.key === r.activeTitle) || null,
+        isMe: true,
+        inTop: idx < top.length
+      };
+    }
+  }
+  return { top, me, total: rows.length };
+}
+
+function getBossRaidState() {
+  return store.bossRaid || null;
+}
+
+function setBossRaidState(boss) {
+  store.bossRaid = boss;
+  save();
+  return store.bossRaid;
+}
+
+function getFishSeasonState() {
+  return store.fishSeason || null;
+}
+
+function setFishSeasonState(season) {
+  store.fishSeason = season;
+  save();
+  return store.fishSeason;
 }
 
 function insertUser({ username, passwordHash, nickname }) {
@@ -326,6 +414,7 @@ module.exports = {
   findUserByNickname,
   listUsers,
   listPointRanking,
+  listPowerRanking,
   insertUser,
   createSession,
   deleteSession,
@@ -336,6 +425,10 @@ module.exports = {
   getLotteryState,
   setLotteryState,
   mutateLottery,
+  getBossRaidState,
+  setBossRaidState,
+  getFishSeasonState,
+  setFishSeasonState,
   listChallenges,
   getChallenge,
   setChallenge,

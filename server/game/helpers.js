@@ -60,6 +60,10 @@ function combatPower(data) {
   const stats = data.jobStats || {};
   power += (stats.str || 0) * 3 + (stats.dex || 0) * 2 + (stats.int || 0) + (stats.wis || 0);
   power += (data.jobLevel || 1) * 2;
+  // 펫 연계 — 레벨·진화 티어가 전투력에 반영
+  if (data.pet) {
+    power += (data.petLevel || 1) * 2 + (data.petTier || 0) * 40;
+  }
   return Math.floor(power);
 }
 
@@ -162,6 +166,19 @@ function publicState(user, point, data) {
     rpsPvp: require("./rpsPvp").getRpsPvpView(user.id, data),
     notifications: require("./farm").getNotificationsView(data),
     attendance: require("./attendance").getAttendanceView(data),
+    boss: require("./boss").getBossView(user.id),
+    fishSeason: require("./fishSeason").getFishSeasonView(user.id),
+    cosmetics: {
+      titles: data.titles || [],
+      skins: data.skins || {},
+      activeTitle: data.activeTitle || null,
+      activeFrame: data.activeFrame || null,
+      activeChatSkin: data.activeChatSkin || null,
+      title:
+        (data.titles || []).find((t) => t.key === data.activeTitle) ||
+        (data.titles || [])[0] ||
+        null
+    },
     status: {
       wantedBounty: data.wantedBounty || 0,
       cursed: (data.curseUntil || 0) > Date.now(),
@@ -196,6 +213,7 @@ function publicState(user, point, data) {
       slimeCost: C.SLIME_COST,
       jobTrainings: Object.values(C.JOB_TRAININGS),
       jobChangePrice: C.JOB_CHANGE_PRICE,
+      bossMilestones: C.BOSS_MILESTONE_LEVELS,
       bank: C.BANK
     }
   };

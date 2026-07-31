@@ -376,9 +376,9 @@ button.point-btn:hover { color: #ffe8a3; }
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 2px;
-  padding: 10px 4px 14px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 10px 8px 14px;
   background: rgba(0,0,0,0.28);
   border-top: 1px solid rgba(255,255,255,0.06);
 }
@@ -387,7 +387,7 @@ button.point-btn:hover { color: #ffe8a3; }
   background: transparent;
   color: rgba(244,255,248,0.55);
   font: inherit;
-  font-size: 0.58rem;
+  font-size: 0.72rem;
   font-weight: 600;
   padding: 10px 0;
   border-radius: 12px;
@@ -396,6 +396,55 @@ button.point-btn:hover { color: #ffe8a3; }
 .nav button.active {
   background: rgba(255,255,255,0.1);
   color: #fff;
+}
+
+.subtabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 0 10px;
+  margin-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.subtabs button {
+  flex: 0 0 auto;
+  border: 0;
+  background: rgba(255,255,255,0.08);
+  color: rgba(244,255,248,0.7);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.subtabs button.active {
+  background: rgba(255, 214, 120, 0.92);
+  color: #1a2e24;
+}
+
+.boss-hp-wrap {
+  margin: 8px 0 12px;
+  background: rgba(0,0,0,0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 16px;
+}
+.boss-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c45c4a, #e8a04a);
+  transition: width 0.35s ease;
+}
+.boss-contrib {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.boss-contrib-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.88rem;
 }
 
 .panel {

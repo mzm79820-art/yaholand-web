@@ -65,7 +65,8 @@ const FISH_BAITS = [
   { key: "worm", name: "벌레미끼", emoji: "🐛", price: 25, rareBoost: 0.3, rodExpMult: 2 },
   { key: "shrimp", name: "새우미끼", emoji: "🦐", price: 80, rareBoost: 0.6, rodExpMult: 4 },
   { key: "shiny", name: "반짝이미끼", emoji: "✨", price: 250, rareBoost: 1.0, rodExpMult: 8 },
-  { key: "legend", name: "전설미끼", emoji: "👑", price: 800, rareBoost: 1.8, rodExpMult: 15 }
+  { key: "legend", name: "전설미끼", emoji: "👑", price: 800, rareBoost: 1.8, rodExpMult: 15 },
+  { key: "season", name: "시즌 미끼", emoji: "🏆", price: 400, rareBoost: 1.4, rodExpMult: 10, seasonOnly: true }
 ];
 
 const ROD_TIER_NAMES = ["낡은 낚싯대", "좋은 낚싯대", "대단한 낚싯대", "전설의 낚싯대"];
@@ -298,6 +299,97 @@ const FARM_CROPS = [
   { key: "goldrice", name: "황금벼", emoji: "🌾", rarity: 4, weight: 2, growMs: 15 * 60 * 1000, seedCost: 150, basePrice: 160 }
 ];
 
+/** 주간 보스 레이드 — Lv.1~100, 토벌 시 다음 레벨 등장 */
+const BOSS_MAX_LEVEL = 100;
+const BOSS_BASE_HP = 8000;
+const BOSS_HP_POWER = 1.32;
+const BOSS_BASE_ARMOR = 20;
+const BOSS_CURSE_MS = 10 * 60 * 1000;
+const BOSS_CURSE_VULN = 0.35; // 저주 중 추가 피해 비율
+const BOSS_ALCHEMY_DMG_MULT = 2.2;
+const BOSS_MILESTONE_LEVELS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
+const BOSS_NAMES = [
+  { emoji: "🐛", name: "숲의 수호충" },
+  { emoji: "🐺", name: "달빛 늑대" },
+  { emoji: "🗿", name: "고대 골렘" },
+  { emoji: "🐉", name: "심연 용족" },
+  { emoji: "😈", name: "그림자 군주" },
+  { emoji: "🌌", name: "종말의 파수꾼" }
+];
+/** 마일스톤별 칭호·스킨 (포인트 환급 없음) */
+const BOSS_MILESTONE_REWARDS = {
+  1: { title: { key: "boss_1", name: "보스 도전자", emoji: "🗡️" }, skin: null, rankTitles: [
+    { rankMax: 1, title: { key: "boss_1_mvp", name: "1레벨 영웅", emoji: "🥇" } },
+    { rankMax: 3, title: { key: "boss_1_elite", name: "1레벨 정예", emoji: "🥈" } }
+  ]},
+  5: { title: { key: "boss_5", name: "정예 토벌대", emoji: "⚔️" }, skin: { key: "frame_green", name: "숲빛 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_5_mvp", name: "오레벨 학살자", emoji: "🥇" } },
+    { rankMax: 3, title: { key: "boss_5_elite", name: "오레벨 선봉", emoji: "🥈" } }
+  ]},
+  10: { title: { key: "boss_10", name: "십층 돌파자", emoji: "🏰" }, skin: { key: "frame_gold", name: "황금 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_10_mvp", name: "십층 군주", emoji: "👑" } },
+    { rankMax: 5, title: { key: "boss_10_elite", name: "십층 기사", emoji: "🛡️" } }
+  ]},
+  15: { title: { key: "boss_15", name: "심연 탐험가", emoji: "🌊" }, skin: { key: "chat_wave", name: "파도 말풍선", type: "chat" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_15_mvp", name: "심연의 왕", emoji: "👑" } },
+    { rankMax: 5, title: { key: "boss_15_elite", name: "심연 수호자", emoji: "💠" } }
+  ]},
+  20: { title: { key: "boss_20", name: "이십층 정복자", emoji: "🔥" }, skin: { key: "frame_fire", name: "화염 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_20_mvp", name: "화염 영웅", emoji: "🔥" } }
+  ]},
+  25: { title: { key: "boss_25", name: "전설의 토벌대", emoji: "⭐" }, skin: { key: "frame_star", name: "별빛 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_25_mvp", name: "전설 영웅", emoji: "⭐" } }
+  ]},
+  30: { title: { key: "boss_30", name: "삼십층 파괴자", emoji: "💥" }, skin: { key: "chat_blast", name: "폭렬 말풍선", type: "chat" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_30_mvp", name: "파괴신", emoji: "💥" } }
+  ]},
+  40: { title: { key: "boss_40", name: "사십층 제압자", emoji: "🧿" }, skin: { key: "frame_void", name: "허공 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_40_mvp", name: "제압왕", emoji: "🧿" } }
+  ]},
+  50: { title: { key: "boss_50", name: "오십층 제왕", emoji: "👑" }, skin: { key: "frame_royal", name: "왕좌 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_50_mvp", name: "반쪽 제왕", emoji: "👑" } }
+  ]},
+  60: { title: { key: "boss_60", name: "육십층 악몽", emoji: "🌑" }, skin: { key: "chat_night", name: "암야 말풍선", type: "chat" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_60_mvp", name: "악몽의 주인", emoji: "🌑" } }
+  ]},
+  70: { title: { key: "boss_70", name: "칠십층 심판자", emoji: "⚖️" }, skin: { key: "frame_judge", name: "심판 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_70_mvp", name: "최종 심판", emoji: "⚖️" } }
+  ]},
+  80: { title: { key: "boss_80", name: "팔십층 종언", emoji: "☄️" }, skin: { key: "frame_meteor", name: "운석 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_80_mvp", name: "종언의 별", emoji: "☄️" } }
+  ]},
+  90: { title: { key: "boss_90", name: "구십층 신화", emoji: "🕊️" }, skin: { key: "chat_myth", name: "신화 말풍선", type: "chat" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_90_mvp", name: "살아있는 신화", emoji: "🕊️" } }
+  ]},
+  100: { title: { key: "boss_100", name: "백층 종결자", emoji: "🌌" }, skin: { key: "frame_cosmos", name: "우주 프레임", type: "frame" }, rankTitles: [
+    { rankMax: 1, title: { key: "boss_100_mvp", name: "야호랜드의 구원자", emoji: "🌌" } },
+    { rankMax: 10, title: { key: "boss_100_elite", name: "종결의 일원", emoji: "✨" } }
+  ]}
+};
+
+function bossAttackCost(level) {
+  return Math.max(20, Math.floor(15 * Math.pow(1.085, Math.max(0, level - 1))));
+}
+
+function bossMaxHp(level) {
+  return Math.floor(BOSS_BASE_HP * Math.pow(Math.max(1, level), BOSS_HP_POWER));
+}
+
+function bossArmor(level) {
+  return Math.floor(BOSS_BASE_ARMOR + level * 12 + Math.pow(level, 1.15));
+}
+
+function bossIdentity(level) {
+  const idx = Math.min(BOSS_NAMES.length - 1, Math.floor((Math.max(1, level) - 1) / 20));
+  const base = BOSS_NAMES[idx];
+  return { emoji: base.emoji, name: `${base.name} Lv.${level}` };
+}
+
+/** 낚시 시즌 대어전 */
+const FISH_SEASON_TITLE = { key: "fish_season_champ", name: "시즌 대어왕", emoji: "🏆" };
+const FISH_SEASON_RUNNER = { key: "fish_season_elite", name: "시즌 낚시꾼", emoji: "🎣" };
+const FISH_SEASON_BAIT_REWARD = 5; // 상위 보상 시즌 미끼 개수
+
 function buildLevelExp() {
   const exp = [100, 200, 400, 800];
   while (exp.length < PET_MAX_LEVEL - 1) {
@@ -399,5 +491,22 @@ module.exports = {
   FARM_MARKET_MIN,
   FARM_MARKET_MAX,
   FARM_CROPS,
+  BOSS_MAX_LEVEL,
+  BOSS_BASE_HP,
+  BOSS_HP_POWER,
+  BOSS_BASE_ARMOR,
+  BOSS_CURSE_MS,
+  BOSS_CURSE_VULN,
+  BOSS_ALCHEMY_DMG_MULT,
+  BOSS_MILESTONE_LEVELS,
+  BOSS_NAMES,
+  BOSS_MILESTONE_REWARDS,
+  bossAttackCost,
+  bossMaxHp,
+  bossArmor,
+  bossIdentity,
+  FISH_SEASON_TITLE,
+  FISH_SEASON_RUNNER,
+  FISH_SEASON_BAIT_REWARD,
   LEVEL_EXP
 };

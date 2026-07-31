@@ -2,6 +2,9 @@ const state = {
   user: null,
   game: null,
   tab: "home",
+  adventureTab: "boss",
+  socialTab: "chat",
+  rankType: "point",
   authMode: "login",
   lastLog: "버튼을 눌러 플레이하세요.",
   betRps: 10,
@@ -19,7 +22,9 @@ const state = {
   attendJustChecked: false,
   chat: [],
   online: [],
-  ranking: null
+  ranking: null,
+  powerRanking: null,
+  fishRanking: null
 };
 
 const appEl = document.getElementById("app");
@@ -452,22 +457,25 @@ function connectChat() {
     }
     if (msg.type === "hello") {
       state.online = msg.online || [];
-      state.chat = (msg.recent || []).filter((m) => m.type !== "activity");
-      if (state.tab === "chat") render();
+      state.chat = (msg.recent || []).map((m) =>
+        m.type === "activity" ? { type: "system", text: m.text, at: m.at } : m
+      );
+      if (state.tab === "social" && state.socialTab === "chat") render();
       return;
     }
     if (msg.type === "online") {
       state.online = msg.online || [];
-      if (state.tab === "chat") updateOnlineDom();
+      if (state.tab === "social" && state.socialTab === "chat") updateOnlineDom();
       return;
     }
     // 새 메시지는 전체 재렌더 없이 채팅 목록에만 덧붙인다.
     // (전체 재렌더 시 채팅 입력창이 새로 생성되어 포커스·입력 내용이 사라짐)
-    if (msg.type === "chat" || msg.type === "system") {
-      state.chat.push(msg);
+    if (msg.type === "chat" || msg.type === "system" || msg.type === "activity") {
+      const line = msg.type === "activity" ? { type: "system", text: msg.text, at: msg.at } : msg;
+      state.chat.push(line);
       if (state.chat.length > 120) state.chat.shift();
-      if (state.tab === "chat") appendChatDom(msg);
-      else if (msg.type === "system") showToast(msg.text);
+      if (state.tab === "social" && state.socialTab === "chat") appendChatDom(line);
+      else if (msg.type === "system" || msg.type === "activity") showToast(msg.text);
       return;
     }
     if (msg.type === "notify") {
@@ -510,7 +518,6 @@ function connectChat() {
       refreshPvpOverlay(null);
       return;
     }
-    if (msg.type === "activity") return;
     if (msg.type === "error") showToast(msg.error);
   };
   chatSocket.onclose = () => {
@@ -1133,12 +1140,17 @@ function openOverlay(kind, meta = null, keepOpen = false) {
     const baitOpts = (g.catalogs.baits || [])
       .map((b) => `<option value="${b.key}" ${state.bait === b.key ? "selected" : ""}>${b.emoji} ${b.name} (${g.fishing.baits[b.key] || 0})</option>`)
       .join("");
+    const season = g.fishSeason;
+    const seasonLine = season?.theme
+      ? `<p class="muted center">🏆 시즌 대어전 · 테마 ${season.theme.emoji} ${escapeHtml(season.theme.name)}${season.me ? ` · 내 ${season.me.rank}위` : ""}</p>`
+      : "";
     body = `
       <div class="stage-art fish-stage" id="fishStage">
         <img src="/img/fish-scene.png" alt="낚시" />
         <div class="fish-splash" id="fishSplash"></div>
       </div>
       <div class="result-panel" id="fishLog">${g.fishing.rod} Lv.${g.fishing.rodLevel} · 미끼를 고르고 낚시를 시작하세요</div>
+      ${seasonLine}
       <label class="field">미끼
         <select id="baitSel">${baitOpts}</select>
       </label>
@@ -2143,6 +2155,8 @@ function renderHome() {
 
   const diceMax = g.limits.dice.max || "∞";
   const fishMax = g.limits.fish.max || "∞";
+  const boss = g.boss;
+  const season = g.fishSeason;
   return `
     <div class="panel stack">
       <h2>일일 퀘스트 <span class="pill">${quests.claimedCount || 0}/3</span></h2>
@@ -2154,6 +2168,21 @@ function renderHome() {
           ? `<button class="btn accent" id="questBonusBtn">🏆 전체 달성 보상 +${quests.bonusReward}P</button>`
           : `<p class="center muted">3개 모두 수령하면 추가 보상이 열립니다</p>`}
     </div>
+    ${boss ? `
+    <button class="game-card" id="goBossBtn" type="button">
+      <div class="game-card-icon">${boss.emoji || "👾"}</div>
+      <div>
+        <strong>보스 레이드 Lv.${boss.level}</strong>
+        <span>HP ${boss.hpPct || 0}% · 공격 ${Number(boss.attackCost || 0).toLocaleString()}P</span>
+      </div>
+    </button>` : ""}
+    ${season?.theme ? `
+    <div class="panel stack">
+      <h2>🏆 시즌 대어전</h2>
+      <p>이번 주 테마: ${season.theme.emoji} <b>${escapeHtml(season.theme.name)}</b></p>
+      <p class="muted">${season.me ? `내 순위 ${season.me.rank}위 · ${Number(season.me.score || 0).toLocaleString()}점` : "테마어·희귀어를 낚아 점수를 쌓으세요"}</p>
+      <button class="btn secondary" id="goFishRankBtn" type="button">대어전 랭킹</button>
+    </div>` : ""}
     <details class="panel status-drop">
       <summary>
         <span>모험 현황</span>
@@ -2258,30 +2287,72 @@ function jobEmoji(jobKey) {
 }
 
 function renderRank() {
-  const data = state.ranking;
+  const type = state.rankType || "point";
+  const data =
+    type === "power" ? state.powerRanking : type === "fish" ? state.fishRanking : state.ranking;
+  const tabs = `
+    <div class="subtabs">
+      <button type="button" data-rank-type="point" class="${type === "point" ? "active" : ""}">포인트</button>
+      <button type="button" data-rank-type="power" class="${type === "power" ? "active" : ""}">전투력</button>
+      <button type="button" data-rank-type="fish" class="${type === "fish" ? "active" : ""}">시즌 대어</button>
+    </div>`;
+
   if (!data) {
     return `
       <div class="panel stack">
-        <h2>포인트 랭킹</h2>
+        <h2>랭킹</h2>
+        ${tabs}
         <p class="muted">랭킹을 불러오는 중...</p>
       </div>
     `;
   }
+
+  const titleMap = {
+    point: { h: "포인트 랭킹", sub: "보유 포인트 기준 · 상위 20위" },
+    power: { h: "전투력 랭킹", sub: "장비·직업·펫 반영 · 상위 20위" },
+    fish: {
+      h: "시즌 대어전",
+      sub: data.theme
+        ? `${data.theme.emoji} ${data.theme.name} 테마 · ${data.weekKey || ""}`
+        : "이번 주 테마어·희귀어 점수"
+    }
+  };
+  const info = titleMap[type] || titleMap.point;
+
   const rows = (data.top || [])
     .map((r) => {
       const medal = rankMedal(r.rank);
+      const title = r.title ? `<span class="meta">${r.title.emoji || ""} ${escapeHtml(r.title.name)}</span>` : "";
+      let score = "";
+      if (type === "power") score = `${Number(r.power || 0).toLocaleString()} 전투력`;
+      else if (type === "fish") score = `${Number(r.score || 0).toLocaleString()}점`;
+      else score = `${Number(r.point || 0).toLocaleString()}P`;
+      const metaExtra =
+        type === "power"
+          ? `${escapeHtml(r.adventurerRank || "F")}급${r.petLevel ? ` · 펫 Lv.${r.petLevel}` : ""}`
+          : type === "fish"
+            ? `테마 ${(r.themeSell || 0).toLocaleString()}P · 희귀 ${r.rareCount || 0}`
+            : `${escapeHtml(r.adventurerRank || "F")}급`;
       return `<div class="rank-row ${r.isMe ? "me" : ""}">
         <div class="rank-pos">${medal}</div>
         <div class="rank-user">
           <div class="rank-name">${jobEmoji(r.job)} ${escapeHtml(r.nickname)}${r.isMe ? " <span class=\"pill\">나</span>" : ""}</div>
-          <div class="meta">${escapeHtml(r.adventurerRank || "F")}급</div>
+          <div class="meta">${metaExtra}</div>
+          ${title}
         </div>
-        <div class="rank-point">${Number(r.point || 0).toLocaleString()}P</div>
+        <div class="rank-point">${score}</div>
       </div>`;
     })
     .join("");
+
   let meBox = "";
   if (data.me && !data.me.inTop) {
+    const meScore =
+      type === "power"
+        ? `${Number(data.me.power || 0).toLocaleString()} 전투력`
+        : type === "fish"
+          ? `${Number(data.me.score || 0).toLocaleString()}점`
+          : `${Number(data.me.point || 0).toLocaleString()}P`;
     meBox = `
       <div class="panel stack">
         <h3>내 순위</h3>
@@ -2291,22 +2362,101 @@ function renderRank() {
             <div class="rank-name">${jobEmoji(data.me.job)} ${escapeHtml(data.me.nickname)} <span class="pill">나</span></div>
             <div class="meta">상위 20위 밖 · 전체 ${data.total || 0}명</div>
           </div>
-          <div class="rank-point">${Number(data.me.point || 0).toLocaleString()}P</div>
+          <div class="rank-point">${meScore}</div>
         </div>
       </div>
     `;
   } else if (data.me) {
     meBox = `<p class="muted center">내 순위 ${data.me.rank}위 · 전체 ${data.total || 0}명</p>`;
   }
+
   return `
     <div class="panel">
-      <h2>포인트 랭킹</h2>
-      <p class="muted">보유 포인트 기준 · 상위 20위</p>
+      <h2>${info.h}</h2>
+      <p class="muted">${info.sub}</p>
+      ${tabs}
     </div>
     <div class="rank-list">${rows || '<p class="muted center">아직 랭킹 데이터가 없습니다.</p>'}</div>
     ${meBox}
     <button class="btn ghost" id="rankRefreshBtn" type="button">새로고침</button>
   `;
+}
+
+function renderBoss() {
+  const b = state.game?.boss;
+  if (!b) {
+    return `<div class="panel"><h2>보스 레이드</h2><p class="muted">불러오는 중…</p></div>`;
+  }
+  const canAlchemy = state.game?.job?.key === "alchemist";
+  const canCurse = state.game?.job?.key === "darkmage";
+  const contrib = (b.contributions || [])
+    .map(
+      (c, i) => `<div class="boss-contrib-row">
+        <span>${i + 1}. ${escapeHtml(c.nickname)}</span>
+        <span class="meta">${Number(c.damage || 0).toLocaleString()} 피해</span>
+      </div>`
+    )
+    .join("");
+  const meLine = b.me
+    ? `<p class="muted">내 기여 ${b.me.rank}위 · ${Number(b.me.damage || 0).toLocaleString()} 피해 · ${b.me.attacks || 0}회</p>`
+    : `<p class="muted">아직 공격하지 않았습니다.</p>`;
+
+  return `
+    <div class="panel stack">
+      <h2>${b.emoji || "👾"} ${escapeHtml(b.name || "보스")}</h2>
+      <p class="muted">Lv.${b.level} / ${b.maxLevel} · 다음 마일스톤 ${b.nextMilestone} · 공격 ${Number(b.attackCost || 0).toLocaleString()}P</p>
+      <div class="boss-hp-wrap"><div class="boss-hp-fill" style="width:${b.hpPct || 0}%"></div></div>
+      <p class="center"><b>${Number(b.hp || 0).toLocaleString()}</b> / ${Number(b.maxHp || 0).toLocaleString()} HP</p>
+      <p class="muted center">${escapeHtml(b.bar || "")}${b.cursed ? " · 🕯️저주중" : ""}</p>
+      <p class="muted">피해 = 전투력(장비·직업스탯·펫) 기반. 포인트는 소모되며 보상은 칭호·스킨 위주입니다.</p>
+      <button class="btn accent big" id="bossAttackBtn">공격 (-${Number(b.attackCost || 0).toLocaleString()}P)</button>
+      ${canAlchemy ? `<button class="btn secondary" id="bossSkillBtn">⚗️ 보스 연금</button>` : ""}
+      ${canCurse ? `<button class="btn secondary" id="bossSkillBtn">🕯️ 보스 저주</button>` : ""}
+      ${meLine}
+    </div>
+    <div class="panel stack">
+      <h3>기여도 TOP</h3>
+      <div class="boss-contrib">${contrib || '<p class="muted">아직 기록이 없습니다.</p>'}</div>
+    </div>
+    <div class="panel">
+      <h3>마일스톤 보상</h3>
+      <p class="muted">1 · 5 · 10 · 15… 레벨 토벌 시 칭호·스킨이 강해집니다. 상위 기여자에게 차등 지급.</p>
+    </div>
+  `;
+}
+
+function renderAdventure() {
+  const sub = state.adventureTab || "boss";
+  const tabs = `
+    <div class="subtabs">
+      <button type="button" data-adv="boss" class="${sub === "boss" ? "active" : ""}">보스</button>
+      <button type="button" data-adv="pet" class="${sub === "pet" ? "active" : ""}">펫</button>
+      <button type="button" data-adv="job" class="${sub === "job" ? "active" : ""}">직업</button>
+      <button type="button" data-adv="dungeon" class="${sub === "dungeon" ? "active" : ""}">던전</button>
+      <button type="button" data-adv="bag" class="${sub === "bag" ? "active" : ""}">가방</button>
+    </div>`;
+  const body =
+    sub === "boss"
+      ? renderBoss()
+      : sub === "pet"
+        ? renderPet()
+        : sub === "job"
+          ? renderJob()
+          : sub === "dungeon"
+            ? renderDungeon()
+            : renderBag();
+  return `${tabs}${body}`;
+}
+
+function renderSocial() {
+  const sub = state.socialTab || "chat";
+  const tabs = `
+    <div class="subtabs">
+      <button type="button" data-social="chat" class="${sub === "chat" ? "active" : ""}">채팅</button>
+      <button type="button" data-social="rank" class="${sub === "rank" ? "active" : ""}">랭킹</button>
+    </div>`;
+  const body = sub === "rank" ? renderRank() : renderChat();
+  return `${tabs}${body}`;
 }
 
 function chatLineHtml(m) {
@@ -2644,14 +2794,100 @@ function bindCommon() {
   if (rankRefresh) {
     rankRefresh.onclick = async () => {
       try {
-        const data = await api("/api/ranking");
-        if (data.ok) {
-          state.ranking = data;
-          render();
-          showToast("랭킹을 갱신했습니다.");
-        }
+        await loadRanking(state.rankType || "point");
+        render();
+        showToast("랭킹을 갱신했습니다.");
       } catch {
         showToast("랭킹을 불러오지 못했습니다.");
+      }
+    };
+  }
+
+  document.querySelectorAll("[data-rank-type]").forEach((btn) => {
+    btn.onclick = async () => {
+      state.rankType = btn.dataset.rankType;
+      render();
+      try {
+        await loadRanking(state.rankType);
+      } catch {
+        showToast("랭킹을 불러오지 못했습니다.");
+      }
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-adv]").forEach((btn) => {
+    btn.onclick = () => {
+      state.adventureTab = btn.dataset.adv;
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-social]").forEach((btn) => {
+    btn.onclick = async () => {
+      state.socialTab = btn.dataset.social;
+      if (state.socialTab === "rank") {
+        render();
+        try {
+          await loadRanking(state.rankType || "point");
+        } catch {
+          showToast("랭킹을 불러오지 못했습니다.");
+        }
+      }
+      render();
+    };
+  });
+
+  const goBoss = document.getElementById("goBossBtn");
+  if (goBoss) {
+    goBoss.onclick = () => {
+      state.tab = "adventure";
+      state.adventureTab = "boss";
+      render();
+    };
+  }
+  const goFishRank = document.getElementById("goFishRankBtn");
+  if (goFishRank) {
+    goFishRank.onclick = async () => {
+      state.tab = "social";
+      state.socialTab = "rank";
+      state.rankType = "fish";
+      render();
+      try {
+        await loadRanking("fish");
+      } catch {
+        /* ignore */
+      }
+      render();
+    };
+  }
+
+  const bossAttack = document.getElementById("bossAttackBtn");
+  if (bossAttack) {
+    bossAttack.onclick = async () => {
+      try {
+        const data = await act("boss-attack");
+        setGame(data);
+        const m = data.meta || {};
+        if (m.cleared) showToast(`막타! 보스 Lv.${m.bossLevel} 토벌!`);
+        else showToast(`피해 ${Number(m.damage || 0).toLocaleString()} · HP ${m.hpPct ?? "?"}%`);
+      } catch (e) {
+        showToast(e.message || "공격 실패");
+      }
+    };
+  }
+  const bossSkillBtn = document.getElementById("bossSkillBtn");
+  if (bossSkillBtn) {
+    bossSkillBtn.onclick = async () => {
+      try {
+        const data = await act("boss-skill");
+        setGame(data);
+        const m = data.meta || {};
+        if (m.cleared) showToast("스킬 막타로 보스를 처치했습니다!");
+        else if (m.success === false) showToast("스킬 실패");
+        else showToast(`${m.skill || "스킬"} 성공!`);
+      } catch (e) {
+        showToast(e.message || "스킬 실패");
       }
     };
   }
@@ -2724,7 +2960,8 @@ function bindCommon() {
     adoptBtn.onclick = async () => {
       try {
         const data = await act("pet-adopt", { name: document.getElementById("petName")?.value || "" });
-        state.tab = "pet";
+        state.tab = "adventure";
+        state.adventureTab = "pet";
         setGame(data);
         showToast("펫을 입양했습니다!");
       } catch {
@@ -2874,17 +3111,47 @@ function render() {
   const views = {
     home: renderHome,
     play: renderPlay,
-    rank: renderRank,
-    chat: renderChat,
-    pet: renderPet,
-    job: renderJob,
-    dungeon: renderDungeon,
+    adventure: renderAdventure,
+    social: renderSocial,
     shop: renderShop,
-    bag: renderBag,
-    purchase: renderPurchase
+    purchase: renderPurchase,
+    // 구 탭 호환
+    rank: () => {
+      state.socialTab = "rank";
+      return renderSocial();
+    },
+    chat: () => {
+      state.socialTab = "chat";
+      return renderSocial();
+    },
+    pet: () => {
+      state.adventureTab = "pet";
+      return renderAdventure();
+    },
+    job: () => {
+      state.adventureTab = "job";
+      return renderAdventure();
+    },
+    dungeon: () => {
+      state.adventureTab = "dungeon";
+      return renderAdventure();
+    },
+    bag: () => {
+      state.adventureTab = "bag";
+      return renderAdventure();
+    }
   };
   appEl.innerHTML = (views[state.tab] || renderHome)();
   bindCommon();
+}
+
+async function loadRanking(type = "point") {
+  const data = await api(`/api/ranking?type=${encodeURIComponent(type)}`);
+  if (!data.ok) throw new Error(data.error || "랭킹 실패");
+  if (type === "power") state.powerRanking = data;
+  else if (type === "fish") state.fishRanking = data;
+  else state.ranking = data;
+  return data;
 }
 
 navEl.querySelectorAll("button").forEach((btn) => {
@@ -2900,11 +3167,10 @@ navEl.querySelectorAll("button").forEach((btn) => {
         /* ignore */
       }
     }
-    if (state.tab === "rank") {
+    if (state.tab === "social" && state.socialTab === "rank") {
       render();
       try {
-        const data = await api("/api/ranking");
-        if (data.ok) state.ranking = data;
+        await loadRanking(state.rankType || "point");
       } catch {
         showToast("랭킹을 불러오지 못했습니다.");
       }
