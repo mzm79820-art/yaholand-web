@@ -138,11 +138,18 @@ const JOB_MAX_LEVEL = 100;
 const JOB_MAX_TIER = 4;
 const SLIME_EXP = 10;
 const SLIME_COST = 10;
-/** 직업 몬스터 훈련 — 비용·경험치·스탯 배수 점진 상승 */
+/** 직업 몬스터 훈련 — 슬라임 10P/10EXP 기준, 단계마다 비용·경험치·스탯 배수 10배 */
 const JOB_TRAININGS = {
   slime: { key: "slime", name: "슬라임", emoji: "🟢", cost: 10, exp: 10, statMult: 1 },
-  goblin: { key: "goblin", name: "고블린", emoji: "👺", cost: 100, exp: 80, statMult: 3 },
-  wolf: { key: "wolf", name: "늑대", emoji: "🐺", cost: 1000, exp: 500, statMult: 8 }
+  goblin: { key: "goblin", name: "고블린", emoji: "👺", cost: 100, exp: 100, statMult: 10 },
+  wolf: { key: "wolf", name: "늑대", emoji: "🐺", cost: 1000, exp: 1000, statMult: 100 },
+  orc: { key: "orc", name: "오크", emoji: "👹", cost: 10000, exp: 10000, statMult: 1000 },
+  troll: { key: "troll", name: "트롤", emoji: "🪓", cost: 100000, exp: 100000, statMult: 10000 },
+  golem: { key: "golem", name: "골렘", emoji: "🗿", cost: 1000000, exp: 1000000, statMult: 100000 },
+  wyvern: { key: "wyvern", name: "와이번", emoji: "🐉", cost: 10000000, exp: 10000000, statMult: 1000000 },
+  demon: { key: "demon", name: "악마", emoji: "😈", cost: 100000000, exp: 100000000, statMult: 10000000 },
+  titan: { key: "titan", name: "타이탄", emoji: "⚡", cost: 1000000000, exp: 1000000000, statMult: 100000000 },
+  ancient: { key: "ancient", name: "고대용", emoji: "🌌", cost: 10000000000, exp: 10000000000, statMult: 1000000000 }
 };
 const JOB_CHANGE_PRICE = 100;
 

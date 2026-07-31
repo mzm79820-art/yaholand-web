@@ -89,12 +89,12 @@ function trainMonster(point, data, trainingKey = "slime") {
     point,
     data,
     log: [
-      `${training.emoji} ${training.name} 훈련! (-${training.cost}P)`,
+      `${training.emoji} ${training.name} 훈련! (-${training.cost.toLocaleString()}P)`,
       gainText || "스탯 변동 없음",
-      `직업 EXP +${training.exp}`,
+      `직업 EXP +${training.exp.toLocaleString()}`,
       ...leveled.lines,
       prev !== data.jobLevel ? `직업 Lv.${data.jobLevel}` : `직업 Lv.${data.jobLevel} (EXP ${data.jobExp})`,
-      `잔액 ${point}P`
+      `잔액 ${point.toLocaleString()}P`
     ],
     meta: { training: training.key, cost: training.cost, exp: training.exp }
   };

@@ -2439,11 +2439,18 @@ function renderJob() {
       <div class="stat-grid">${stats}</div>
       <div class="stack" style="margin-top:8px">
         ${(g.catalogs.jobTrainings || [
-          { key: "slime", name: "슬라임", cost: g.catalogs.slimeCost || 10 },
-          { key: "goblin", name: "고블린", cost: 100 },
-          { key: "wolf", name: "늑대", cost: 1000 }
+          { key: "slime", name: "슬라임", emoji: "🟢", cost: 10 },
+          { key: "goblin", name: "고블린", emoji: "👺", cost: 100 },
+          { key: "wolf", name: "늑대", emoji: "🐺", cost: 1000 },
+          { key: "orc", name: "오크", emoji: "👹", cost: 10000 },
+          { key: "troll", name: "트롤", emoji: "🪓", cost: 100000 },
+          { key: "golem", name: "골렘", emoji: "🗿", cost: 1000000 },
+          { key: "wyvern", name: "와이번", emoji: "🐉", cost: 10000000 },
+          { key: "demon", name: "악마", emoji: "😈", cost: 100000000 },
+          { key: "titan", name: "타이탄", emoji: "⚡", cost: 1000000000 },
+          { key: "ancient", name: "고대용", emoji: "🌌", cost: 10000000000 }
         ]).map((t) => `
-          <button class="btn accent" data-job-train="${t.key}">${t.emoji || ""} ${t.name} 훈련 (${t.cost}P)</button>
+          <button class="btn accent" data-job-train="${t.key}">${t.emoji || ""} ${t.name} 훈련 (${Number(t.cost).toLocaleString()}P)</button>
         `).join("")}
       </div>
     </div>
